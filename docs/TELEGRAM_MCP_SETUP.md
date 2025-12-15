@@ -46,8 +46,8 @@ To test the Telegram MCP server with the inspector:
 
 ```bash
 npx @modelcontextprotocol/inspector @chaindead/telegram-mcp \
-  --app-id 35016649 \
-  --api-hash 1e9a9f368609a125023e5e79d9004958
+  --app-id 92374962 \
+  --api-hash uyewoiteoqt3874102
 ```
 
 ### Available MCP Tools

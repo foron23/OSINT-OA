@@ -1,5 +1,5 @@
 /* =============================================================================
-   OSINT News Aggregator - Hacker Theme Styles
+   OSINT Aggregator - Hacker Theme Styles with Matrix Effects
    ============================================================================= */
 
 /* Reset & Base */
@@ -10,7 +10,7 @@
 }
 
 :root {
-    /* Hacker Theme - Black & Red */
+    /* Hacker Theme - Black & Green Matrix */
     --primary-color: #ff0040;
     --primary-dark: #cc0033;
     --primary-glow: rgba(255, 0, 64, 0.5);
@@ -34,6 +34,58 @@
     --radius: 6px;
     --terminal-green: #00ff41;
     --terminal-red: #ff0040;
+    --matrix-green: #00ff41;
+    --matrix-green-dim: rgba(0, 255, 65, 0.1);
+}
+
+/* Matrix Rain Background */
+@keyframes matrixRain {
+    0% { transform: translateY(-100%); opacity: 1; }
+    100% { transform: translateY(1000%); opacity: 0; }
+}
+
+@keyframes matrixGlow {
+    0%, 100% { text-shadow: 0 0 5px var(--matrix-green), 0 0 10px var(--matrix-green); }
+    50% { text-shadow: 0 0 20px var(--matrix-green), 0 0 30px var(--matrix-green); }
+}
+
+@keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100vh); }
+}
+
+@keyframes flicker {
+    0%, 100% { opacity: 1; }
+    92% { opacity: 1; }
+    93% { opacity: 0.8; }
+    94% { opacity: 1; }
+    97% { opacity: 0.9; }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 5px var(--primary-glow); }
+    50% { box-shadow: 0 0 20px var(--primary-glow), 0 0 30px var(--primary-glow); }
+}
+
+@keyframes typewriter {
+    from { width: 0; }
+    to { width: 100%; }
+}
+
+@keyframes blink {
+    0%, 50% { border-color: var(--terminal-green); }
+    51%, 100% { border-color: transparent; }
 }
 
 body {
@@ -43,14 +95,58 @@ body {
     line-height: 1.6;
     min-height: 100vh;
     background-image: 
-        radial-gradient(circle at 20% 50%, rgba(255, 0, 64, 0.03) 0%, transparent 50%),
-        radial-gradient(circle at 80% 50%, rgba(233, 69, 96, 0.02) 0%, transparent 50%);
+        radial-gradient(circle at 20% 50%, rgba(0, 255, 65, 0.02) 0%, transparent 50%),
+        radial-gradient(circle at 80% 50%, rgba(255, 0, 64, 0.03) 0%, transparent 50%);
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Subtle Matrix rain overlay */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    background: 
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(0, 255, 65, 0.01) 2px,
+            rgba(0, 255, 65, 0.01) 4px
+        );
+    z-index: 9999;
+    animation: flicker 4s infinite;
+}
+
+/* Scanline effect */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 255, 65, 0.03) 0%,
+        transparent 100%
+    );
+    pointer-events: none;
+    z-index: 9998;
+    animation: scanline 8s linear infinite;
+    opacity: 0.5;
 }
 
 .container {
     max-width: 1400px;
     margin: 0 auto;
     padding: 20px;
+    position: relative;
+    z-index: 1;
 }
 
 /* Header */
@@ -1342,4 +1438,158 @@ body {
 ::selection {
     background: var(--primary-color);
     color: var(--text-bright);
+}
+
+/* =============================================================================
+   Matrix-style Animations and Effects
+   ============================================================================= */
+
+/* Panel entrance animation */
+.panel {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+/* Item cards with staggered animation */
+.item-card {
+    animation: fadeInUp 0.4s ease-out backwards;
+    transition: all 0.3s ease;
+}
+
+.item-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0 20px var(--matrix-green-dim), var(--shadow-lg);
+    border-color: var(--matrix-green);
+}
+
+/* Finding cards specific styles */
+.finding-card {
+    border-left: 3px solid var(--matrix-green);
+}
+
+.finding-card:hover {
+    border-left-color: var(--primary-color);
+}
+
+.ioc-card {
+    border-left-color: var(--warning-color);
+    background: linear-gradient(135deg, var(--card-bg) 0%, rgba(255, 204, 0, 0.05) 100%);
+}
+
+.ioc-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(255, 204, 0, 0.2);
+    color: var(--warning-color);
+    font-size: 0.7rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 8px;
+}
+
+.item-section-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background: rgba(0, 255, 65, 0.1);
+    color: var(--matrix-green);
+    font-size: 0.65rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+
+/* Matrix glow effect on focus */
+.form-group input:focus,
+.form-group select:focus {
+    box-shadow: 0 0 15px var(--primary-glow), 0 0 30px rgba(0, 255, 65, 0.1);
+}
+
+/* Button hover effects */
+.btn-primary:hover {
+    animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+/* Loading animation with matrix style */
+.loading {
+    position: relative;
+    color: var(--matrix-green);
+}
+
+.loading::after {
+    content: '...';
+    animation: blink 1s step-end infinite;
+}
+
+/* Run status with glow */
+.run-status.completed {
+    text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+}
+
+.run-status.running {
+    animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* Header title animation */
+.header h1 {
+    animation: matrixGlow 3s ease-in-out infinite;
+}
+
+/* Subtle terminal cursor effect */
+.header h1::after {
+    content: '_';
+    animation: blink 1s step-end infinite;
+    margin-left: 5px;
+    color: var(--matrix-green);
+}
+
+/* Evidence items grid animation */
+.items-grid .item-card:nth-child(odd) {
+    animation-delay: 0.1s;
+}
+
+.items-grid .item-card:nth-child(even) {
+    animation-delay: 0.2s;
+}
+
+/* Hint text */
+.hint {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-top: 5px;
+}
+
+/* Empty state styling */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+}
+
+.empty-state p:first-child {
+    font-size: 1.1rem;
+    margin-bottom: 10px;
+}
+
+/* Matrix rain canvas (for JS integration) */
+#matrixCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.05;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

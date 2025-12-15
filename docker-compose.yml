@@ -44,7 +44,9 @@ services:
       # SQLite database persistence
       - osint-data:/app/data
       # Telegram session persistence (important for MCP auth)
-      - telegram-session:/app/data/telegram-session
+      # Bind mount desde el host - permite pre-cargar sesión existente
+      # IMPORTANTE: La ruta debe ser absoluta o relativa al docker-compose.yml
+      - ${TELEGRAM_SESSION_HOST_PATH:-./telegram-session}:/app/data/telegram-session
       # Optional: mount .env for runtime changes (read-only)
       # - ./.env:/app/.env:ro
     
@@ -81,12 +83,6 @@ volumes:
   osint-data:
     driver: local
     name: osint-news-data
-  
-  # Telegram MCP session - preserves authentication
-  # IMPORTANT: First run requires interactive auth, see README
-  telegram-session:
-    driver: local
-    name: osint-telegram-session
 
 # -----------------------------------------------------------------------------
 # Networks (optional, for multi-service setups)

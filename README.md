@@ -191,6 +191,84 @@ curl http://localhost:5000/api/runs/1/traces/summary
 
 Accede a `http://localhost:5000` para el panel web con tema hacker (negro/rojo).
 
+## 📱 Integración Telegram - Guía Completa
+
+OSINT Aggregator incluye un bot de Telegram completo que permite ejecutar investigaciones y consultar resultados directamente desde un chat.
+
+### Comandos Disponibles
+
+| Comando | Descripción | Ejemplo |
+|---------|-------------|---------|
+| `/osint <query>` | Iniciar investigación OSINT | `/osint ransomware attacks 2025` |
+| `/search <query>` | Búsqueda rápida | `/search CVE-2024-21762` |
+| `/runs` | Listar investigaciones recientes | `/runs` |
+| `/run <id>` | Ver detalles de una investigación | `/run 42` |
+| `/traces <id>` | Ver trazas de ejecución | `/traces 42` |
+| `/status` | Ver estado del bot | `/status` |
+| `/help` | Mostrar ayuda | `/help` |
+
+### Lenguaje Natural
+
+El bot también entiende solicitudes en lenguaje natural:
+
+```
+Investiga sobre APT29
+Busca información sobre vulnerabilidades en Cisco
+Analiza las últimas amenazas de ransomware
+Investigate recent DDoS attacks on banks
+```
+
+### Consultar Investigaciones Anteriores
+
+```
+# Ver lista de investigaciones
+/runs
+
+# Ver detalles de la investigación #5
+/run 5
+
+# Ver los pasos que siguió el sistema
+/traces 5
+```
+
+### Ejemplos de Uso
+
+**Investigación de amenazas:**
+```
+/osint APT groups targeting healthcare sector 2024
+```
+
+**Análisis de vulnerabilidad:**
+```
+/osint CVE-2024-3400 exploitation in the wild
+```
+
+**Reconocimiento de dominio:**
+```
+/osint domain reconnaissance example.com
+```
+
+**OSINT de username:**
+```
+/osint find accounts for username "targetuser123"
+```
+
+### Configuración
+
+1. Configura las variables en `.env`:
+```env
+TELEGRAM_TARGET_DIALOG=nombre_del_chat_o_id
+TG_APP_ID=tu_app_id
+TG_API_HASH=tu_api_hash
+```
+
+2. Inicia la sesión de Telegram:
+```bash
+./scripts/setup-telegram.sh
+```
+
+3. El bot comenzará a escuchar automáticamente al iniciar Docker.
+
 ## 🧪 Tests
 
 ```bash

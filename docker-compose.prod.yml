@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Production Docker Compose
+# OSINT Aggregator - Production Docker Compose
 # =============================================================================
 # Configuración completa para despliegue en producción
 #
@@ -43,8 +43,6 @@
 # │                                                                          │
 # └─────────────────────────────────────────────────────────────────────────┘
 # =============================================================================
-
-version: "3.8"
 
 services:
   # ===========================================================================
@@ -114,11 +112,16 @@ services:
       - osint-data:/app/data
       
       # Sesión de Telegram (autenticación persistente)
-      # OPCIÓN 1: Montar desde el host (si existe ~/.telegram-mcp o $TELEGRAM_SESSION_HOST_PATH)
-      # OPCIÓN 2: Usar volumen Docker (si no hay sesión en el host)
-      # Por defecto usa el volumen. Para montar desde host, añade en .env:
-      #   TELEGRAM_SESSION_HOST_PATH=/home/tu_usuario/.telegram-mcp
-      - ${TELEGRAM_SESSION_HOST_PATH:-telegram-session}:/app/data/telegram-session
+      # Bind mount desde el directorio del host para permitir pre-cargar sesión existente
+      # 
+      # Configurar en .env:
+      #   TELEGRAM_SESSION_HOST_PATH=/ruta/absoluta/a/telegram-session
+      # 
+      # O usar ruta relativa (relativa al docker-compose.yml):
+      #   TELEGRAM_SESSION_HOST_PATH=./telegram-session
+      #
+      # IMPORTANTE: El directorio debe existir antes de levantar el contenedor
+      - ${TELEGRAM_SESSION_HOST_PATH:-./telegram-session}:/app/data/telegram-session
       
       # Logs de la aplicación (opcional, para debugging)
       - osint-logs:/app/logs
@@ -200,15 +203,6 @@ volumes:
     name: osint-news-data-prod
     labels:
       - "com.osint.volume=data"
-      - "com.osint.backup=required"
-  
-  # Sesión autenticada de Telegram MCP
-  # CRÍTICO: Preserva la autenticación con Telegram
-  telegram-session:
-    driver: local
-    name: osint-telegram-session-prod
-    labels:
-      - "com.osint.volume=telegram-session"
       - "com.osint.backup=required"
   
   # Logs de la aplicación

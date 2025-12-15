@@ -56,9 +56,42 @@ def get_pagination():
     return limit, offset
 
 
-def error_response(message: str, status_code: int = 400):
-    """Create error response."""
-    return jsonify({"error": message}), status_code
+def error_response(message: str, status_code: int = 400, error_type: str = None):
+    """Create error response with detailed information."""
+    response = {"error": message}
+    if error_type:
+        response["error_type"] = error_type
+    return jsonify(response), status_code
+
+
+def handle_database_error(e: Exception):
+    """Handle database errors with user-friendly messages."""
+    error_str = str(e).lower()
+    
+    if "readonly database" in error_str:
+        return error_response(
+            "Database is read-only. Please check volume permissions.",
+            500,
+            "database_readonly"
+        )
+    elif "no such table" in error_str:
+        return error_response(
+            "Database not initialized. Please restart the application.",
+            500,
+            "database_not_initialized"
+        )
+    elif "database is locked" in error_str:
+        return error_response(
+            "Database is busy. Please try again in a moment.",
+            503,
+            "database_locked"
+        )
+    else:
+        return error_response(
+            f"Database error: {e}",
+            500,
+            "database_error"
+        )
 
 
 async def publish_to_telegram(report_text: str, topic: str, run_id: int) -> dict:
@@ -598,13 +631,17 @@ async def collect():
     publish_telegram = data.get('publish_telegram', True)
     
     # Create run record in database first
-    run_id = RunRepository.create(
-        query=query,
-        initiated_by="api",
-        limit_requested=limit,
-        since=since,
-        scope=scope
-    )
+    try:
+        run_id = RunRepository.create(
+            query=query,
+            initiated_by="api",
+            limit_requested=limit,
+            since=since,
+            scope=scope
+        )
+    except Exception as e:
+        logger.error(f"Failed to create run record: {e}")
+        return handle_database_error(e)
     
     # Initialize control agent
     control_agent = ControlAgent()

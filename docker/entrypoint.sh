@@ -89,9 +89,22 @@ init_database() {
         mkdir -p "$DB_DIR"
     fi
     
-    # Verificar permisos
+    # Arreglar permisos del directorio de datos (necesario cuando se monta volumen)
+    # El volumen puede haber sido creado por root, necesitamos hacerlo escribible
+    if [ ! -w "$DB_DIR" ]; then
+        log_warn "Database directory not writable, attempting to fix permissions..."
+        # Si somos root (en entrypoint antes de cambiar usuario), arreglamos permisos
+        if [ "$(id -u)" = "0" ]; then
+            chown -R osint:osint "$DB_DIR" 2>/dev/null || true
+            chmod -R 755 "$DB_DIR" 2>/dev/null || true
+        fi
+    fi
+    
+    # Verificar permisos de nuevo
     if [ ! -w "$DB_DIR" ]; then
         log_error "Cannot write to database directory: $DB_DIR"
+        log_error "Please ensure the volume has correct permissions:"
+        log_error "  docker exec -u root <container> chown -R osint:osint /app/data"
         exit 1
     fi
     
@@ -105,6 +118,11 @@ print('Database initialized successfully')
 "
     else
         log_info "Database exists at: $DATABASE_PATH"
+        # Verificar que la base de datos es escribible
+        if [ ! -w "$DATABASE_PATH" ]; then
+            log_warn "Database file not writable, attempting to fix..."
+            chmod 644 "$DATABASE_PATH" 2>/dev/null || true
+        fi
     fi
 }
 
@@ -139,7 +157,7 @@ check_telegram_mcp() {
 # Mostrar Configuración
 # =============================================================================
 show_config() {
-    log_info "=== OSINT News Aggregator Configuration ==="
+    log_info "=== OSINT Aggregator Configuration ==="
     echo "  Flask Debug: ${FLASK_DEBUG:-0}"
     echo "  Database: ${DATABASE_PATH}"
     echo "  Telegram MCP: ${TELEGRAM_MCP_PATH}"
@@ -163,10 +181,45 @@ prepare_logs() {
 }
 
 # =============================================================================
+# Arreglar permisos de volúmenes (ejecutar como root)
+# =============================================================================
+fix_permissions() {
+    # Solo ejecutar si somos root
+    if [ "$(id -u)" != "0" ]; then
+        return 0
+    fi
+    
+    log_info "Fixing volume permissions..."
+    
+    # Arreglar permisos del directorio de datos
+    if [ -d "/app/data" ]; then
+        chown -R osint:osint /app/data 2>/dev/null || true
+        chmod -R 755 /app/data 2>/dev/null || true
+    fi
+    
+    # Arreglar permisos del directorio de logs
+    if [ -d "/app/logs" ]; then
+        chown -R osint:osint /app/logs 2>/dev/null || true
+        chmod -R 755 /app/logs 2>/dev/null || true
+    fi
+    
+    # Arreglar permisos de la sesión de Telegram
+    if [ -d "/app/data/telegram-session" ]; then
+        chown -R osint:osint /app/data/telegram-session 2>/dev/null || true
+        chmod -R 755 /app/data/telegram-session 2>/dev/null || true
+    fi
+    
+    log_info "Permissions fixed"
+}
+
+# =============================================================================
 # Main
 # =============================================================================
 main() {
-    log_info "Starting OSINT News Aggregator..."
+    log_info "Starting OSINT Aggregator..."
+    
+    # Arreglar permisos de volúmenes (si somos root)
+    fix_permissions
     
     # Ejecutar validaciones
     validate_env

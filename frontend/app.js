@@ -1,5 +1,5 @@
 // =============================================================================
-// OSINT News Aggregator - Frontend Application
+// OSINT Aggregator - Frontend Application
 // =============================================================================
 
 /**
@@ -279,62 +279,203 @@ function closeDetail() {
 }
 
 // =============================================================================
-// Items
+// Evidence Items (Extracted from Report)
 // =============================================================================
 
 /**
- * Load items for a run
+ * Extract findings from report markdown
+ */
+function extractFindingsFromReport(reportText) {
+    if (!reportText) return [];
+    
+    const findings = [];
+    const lines = reportText.split('\n');
+    
+    let currentSection = '';
+    let currentFinding = null;
+    
+    for (const line of lines) {
+        // Detect section headers
+        if (line.match(/^##\s+(.+)/)) {
+            currentSection = line.replace(/^##\s+/, '').trim();
+            continue;
+        }
+        
+        // Detect numbered findings or bullet points with links
+        const linkMatch = line.match(/\[([^\]]+)\]\(([^)]+)\)/);
+        const bulletMatch = line.match(/^[\-\*\d\.]+\s+\*?\*?([^*]+)\*?\*?/);
+        
+        if (linkMatch) {
+            findings.push({
+                title: linkMatch[1],
+                url: linkMatch[2],
+                section: currentSection,
+                description: line.replace(/\[([^\]]+)\]\([^)]+\)/, '').replace(/^[\-\*\d\.]+\s+/, '').trim()
+            });
+        } else if (bulletMatch && currentSection.toLowerCase().includes('finding')) {
+            // Capture findings from "Key Findings" section
+            const title = bulletMatch[1].replace(/\*\*/g, '').trim();
+            if (title.length > 10) {
+                findings.push({
+                    title: title.substring(0, 80),
+                    section: currentSection,
+                    description: line.replace(/^[\-\*\d\.]+\s+/, '').trim()
+                });
+            }
+        }
+    }
+    
+    // Also extract IOCs from markdown tables
+    const iocTableMatch = reportText.match(/\|.*Type.*\|.*Value.*\|[\s\S]*?(?=\n\n|\n##|$)/i);
+    if (iocTableMatch) {
+        const tableLines = iocTableMatch[0].split('\n').filter(l => l.includes('|') && !l.includes('---'));
+        for (let i = 1; i < tableLines.length; i++) {
+            const cols = tableLines[i].split('|').map(c => c.trim()).filter(c => c);
+            if (cols.length >= 2) {
+                findings.push({
+                    title: `IOC: ${cols[1]}`,
+                    section: 'Indicators of Compromise',
+                    type: cols[0],
+                    description: cols[2] || '',
+                    isIOC: true
+                });
+            }
+        }
+    }
+    
+    return findings.slice(0, 20); // Limit to 20 items
+}
+
+/**
+ * Load items for a run - now extracts from report
  */
 async function loadItems(runId) {
     const section = document.getElementById('itemsSection');
     const container = document.getElementById('itemsList');
     
     section.classList.remove('hidden');
-    container.innerHTML = '<p class="loading">Loading items...</p>';
+    container.innerHTML = '<p class="loading">Loading evidence...</p>';
     
     try {
+        // First try to get traditional items
         const data = await apiRequest(`/items?run_id=${runId}&limit=50`);
         
-        if (!data.items || data.items.length === 0) {
+        if (data.items && data.items.length > 0) {
+            // Traditional items exist
+            renderTraditionalItems(container, data.items);
+            return;
+        }
+        
+        // No traditional items - extract from report
+        const run = await apiRequest(`/runs/${runId}`);
+        const reportText = run.report?.report || run.report?.summary || '';
+        
+        if (!reportText) {
             container.innerHTML = `
                 <div class="empty-state">
-                    <p>No items collected yet</p>
+                    <p>No evidence collected yet</p>
+                    <p class="hint">Evidence will appear once the investigation completes</p>
                 </div>
             `;
             return;
         }
         
-        container.innerHTML = data.items.map(item => `
-            <div class="item-card">
-                ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" class="item-image" onerror="this.style.display='none'">` : ''}
+        const findings = extractFindingsFromReport(reportText);
+        
+        if (findings.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <p>Report generated without structured findings</p>
+                    <p class="hint">View the full report above for details</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Render extracted findings
+        container.innerHTML = findings.map((item, idx) => `
+            <div class="item-card finding-card ${item.isIOC ? 'ioc-card' : ''}" style="animation-delay: ${idx * 0.05}s">
                 <div class="item-content">
+                    <div class="item-section-badge">${escapeHtml(item.section || 'Finding')}</div>
                     <h3 class="item-title">
-                        <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">
-                            ${escapeHtml(truncate(item.title, 80))}
-                        </a>
+                        ${item.url ? 
+                            `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">
+                                ${escapeHtml(truncate(item.title, 80))}
+                            </a>` : 
+                            escapeHtml(truncate(item.title, 80))
+                        }
                     </h3>
-                    <p class="item-summary">${escapeHtml(truncate(item.summary, 150))}</p>
-                    <div class="item-meta">
-                        <span class="item-source">${escapeHtml(item.source_name || 'Unknown')}</span>
-                        <span class="item-date">${formatDate(item.published_at)}</span>
-                    </div>
-                    ${item.tags && item.tags.length ? `
-                        <div class="item-tags">
-                            ${item.tags.slice(0, 5).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
-                        </div>
-                    ` : ''}
+                    ${item.description ? `<p class="item-summary">${escapeHtml(truncate(item.description, 150))}</p>` : ''}
+                    ${item.isIOC ? `<span class="ioc-badge">${escapeHtml(item.type || 'IOC')}</span>` : ''}
                 </div>
             </div>
         `).join('');
         
     } catch (error) {
-        container.innerHTML = `<p class="status-message error">Error loading items: ${error.message}</p>`;
+        container.innerHTML = `<p class="status-message error">Error loading evidence: ${getErrorMessage(error)}</p>`;
     }
+}
+
+/**
+ * Render traditional items (legacy format)
+ */
+function renderTraditionalItems(container, items) {
+    container.innerHTML = items.map((item, idx) => `
+        <div class="item-card" style="animation-delay: ${idx * 0.05}s">
+            ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" class="item-image" onerror="this.style.display='none'">` : ''}
+            <div class="item-content">
+                <h3 class="item-title">
+                    <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer">
+                        ${escapeHtml(truncate(item.title, 80))}
+                    </a>
+                </h3>
+                <p class="item-summary">${escapeHtml(truncate(item.summary, 150))}</p>
+                <div class="item-meta">
+                    <span class="item-source">${escapeHtml(item.source_name || 'Unknown')}</span>
+                    <span class="item-date">${formatDate(item.published_at)}</span>
+                </div>
+                ${item.tags && item.tags.length ? `
+                    <div class="item-tags">
+                        ${item.tags.slice(0, 5).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `).join('');
 }
 
 // =============================================================================
 // Collection
 // =============================================================================
+
+/**
+ * Get user-friendly error message
+ */
+function getErrorMessage(error) {
+    const message = error.message || String(error);
+    
+    // Map common errors to user-friendly messages
+    const errorMappings = {
+        'database is read-only': '⚠️ Database permission error. Please contact administrator.',
+        'database_readonly': '⚠️ Database permission error. Please contact administrator.',
+        'database not initialized': '⚠️ Database not ready. Please restart the application.',
+        'database_not_initialized': '⚠️ Database not ready. Please restart the application.',
+        'database is busy': '⏳ Server is busy. Please try again in a moment.',
+        'database_locked': '⏳ Server is busy. Please try again in a moment.',
+        'failed to fetch': '🔌 Connection error. Please check your network.',
+        'network error': '🔌 Connection error. Please check your network.',
+        'internal server error': '🔧 Server error. Please try again later.',
+    };
+    
+    const lowerMessage = message.toLowerCase();
+    for (const [key, friendlyMessage] of Object.entries(errorMappings)) {
+        if (lowerMessage.includes(key)) {
+            return friendlyMessage;
+        }
+    }
+    
+    return message;
+}
 
 /**
  * Start a new collection
@@ -374,7 +515,7 @@ async function startCollection(formData) {
         setTimeout(() => viewRun(result.run_id), 500);
         
     } catch (error) {
-        showStatus('collectStatus', `❌ Collection failed: ${error.message}`, 'error');
+        showStatus('collectStatus', `❌ Collection failed: ${getErrorMessage(error)}`, 'error');
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;

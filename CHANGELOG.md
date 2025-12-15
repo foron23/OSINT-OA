@@ -5,6 +5,53 @@ All notable changes to OSINT Agentic Operations will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-12-15
+
+### 🐛 Bug Fixes
+
+#### Docker Volume Permissions
+- **Fixed database read-only error**: Added `fix_permissions()` function in entrypoint that automatically corrects volume permissions when Docker volumes are mounted
+- **Telegram session loading**: Fixed bind mount configuration for `./telegram-session` directory to properly load existing sessions
+
+#### Frontend Improvements
+- **Evidence Items section**: Now extracts and displays structured findings from investigation reports
+  - Parses markdown reports to extract key findings, links, and IOCs
+  - Shows IOCs in a dedicated badge format
+  - Displays section context for each finding
+
+### ✨ Enhancements
+
+#### Matrix-Style UI Effects
+- Added subtle Matrix-inspired animations to the hacker theme:
+  - Scanline effect overlay
+  - Flicker animation for CRT monitor feel
+  - Pulse glow on interactive elements
+  - Fade-in animations for cards and panels
+  - Terminal cursor blink on header
+- All animations respect `prefers-reduced-motion` accessibility setting
+
+#### Improved Error Handling
+- Backend now returns specific error types (`database_readonly`, `database_locked`, etc.)
+- Frontend translates technical errors to user-friendly messages
+- Better error messages guide users on how to resolve issues
+
+### 🔧 Changes
+
+#### Rebranding
+- Renamed from "OSINT News Aggregator" to "OSINT Aggregator" throughout
+- Updated page title, headers, and documentation
+
+#### Docker Compose
+- Removed obsolete `version` attribute from docker-compose files
+- Improved documentation in docker-compose.prod.yml
+- Changed telegram-session from Docker volume to bind mount for easier session management
+
+### 📚 Documentation
+- Updated CHANGELOG with v1.0.1 changes
+- Added Telegram usage guide section
+
+---
+
 ## [1.0.0] - 2024-12-15
 
 ### 🎉 Initial Release - OSINT Agentic Operations
