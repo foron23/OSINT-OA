@@ -1,0 +1,245 @@
+# =============================================================================
+# OSINT News Aggregator - Production Dockerfile (Multi-Service)
+# =============================================================================
+# Imagen optimizada para producción que incluye:
+# - Aplicación Flask con Gunicorn (WSGI server)
+# - Servidor MCP de OSINT (Python)
+# - Telegram MCP Client (binario Go pre-compilado)
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │                    DECISIONES DE ARQUITECTURA                            │
+# ├─────────────────────────────────────────────────────────────────────────┤
+# │                                                                          │
+# │ 1. MULTI-STAGE BUILD                                                     │
+# │    - Reduce el tamaño de la imagen final (~60% menos)                   │
+# │    - Herramientas de compilación (gcc, g++) solo en stage builder       │
+# │    - Imagen final solo tiene runtime dependencies                        │
+# │                                                                          │
+# │ 2. python:3.12-slim como base                                           │
+# │    - Balance óptimo entre tamaño (~150MB) y compatibilidad              │
+# │    - Alpine sería más pequeña pero causa problemas con lxml, numpy      │
+# │    - Debian-based garantiza compatibilidad con el binario Go            │
+# │                                                                          │
+# │ 3. TINI como init system                                                │
+# │    - Manejo correcto de señales (SIGTERM, SIGINT)                       │
+# │    - Previene procesos zombie                                            │
+# │    - Esencial para contenedores de larga duración                       │
+# │                                                                          │
+# │ 4. GUNICORN con workers gthread                                         │
+# │    - Mejor rendimiento para APIs con I/O intensivo                      │
+# │    - 4 workers × 2 threads = 8 conexiones concurrentes                  │
+# │    - Timeout 120s para operaciones OSINT lentas                         │
+# │                                                                          │
+# │ 5. Usuario non-root                                                      │
+# │    - Seguridad: el contenedor nunca corre como root                     │
+# │    - Cumple con políticas de seguridad empresariales                    │
+# │                                                                          │
+# │ 6. Healthcheck integrado                                                │
+# │    - Permite a Docker/K8s/Swarm detectar fallos                         │
+# │    - Auto-restart si la aplicación no responde                          │
+# │                                                                          │
+# │ 7. Telegram MCP binario incluido                                        │
+# │    - Binario Go pre-compilado para Linux x86-64                         │
+# │    - Evita necesidad de Go toolchain en la imagen                       │
+# │    - Comunicación via stdio MCP protocol                                │
+# │                                                                          │
+# │ 8. Volúmenes para persistencia                                          │
+# │    - /app/data: SQLite database + reportes                              │
+# │    - /app/data/telegram-session: Sesión autenticada de Telegram         │
+# │                                                                          │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# Uso:
+#   docker build -f Dockerfile.prod -t osint-aggregator:prod .
+#   docker run -p 5000:5000 --env-file .env osint-aggregator:prod
+#
+# Con docker-compose:
+#   docker-compose -f docker-compose.prod.yml up -d
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Builder - Instala dependencias con uv (10-100x más rápido que pip)
+# -----------------------------------------------------------------------------
+FROM python:3.12-slim AS builder
+
+# Metadatos del builder stage
+LABEL stage=builder
+
+# Build dependencies necesarios para compilar wheels de Python
+# - gcc, g++: Compiladores para extensiones C/C++
+# - libffi-dev: Foreign Function Interface (requerido por cffi)
+# - libxml2-dev, libxslt1-dev: Parsing XML/HTML (lxml)
+# - curl: Para instalar uv
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libffi-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar uv - El gestor de paquetes Python más rápido
+# https://github.com/astral-sh/uv
+ENV UV_VERSION=0.5.24
+RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+# Virtual environment aislado - permite copiar solo las dependencias
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    VIRTUAL_ENV="/opt/venv"
+
+# Instalación de dependencias Python con uv (MUCHO más rápido)
+# - --no-cache: Reduce tamaño de imagen
+# - Orden: requirements.txt primero para mejor caching de layers
+COPY requirements.txt .
+RUN uv pip install --no-cache -r requirements.txt && \
+    uv pip install --no-cache gunicorn supervisor aiohttp
+
+# -----------------------------------------------------------------------------
+# Stage 2: Production Runtime - Imagen mínima de producción
+# -----------------------------------------------------------------------------
+FROM python:3.12-slim AS production
+
+LABEL maintainer="OSINT News Aggregator Team"
+LABEL description="Production-ready OSINT News Aggregator with MCP Servers"
+LABEL version="2.0.0"
+LABEL org.opencontainers.image.source="https://github.com/your-org/osint-news-aggregator"
+
+# Runtime dependencies (sin herramientas de compilación)
+# - libxml2, libxslt1.1: Runtime para lxml
+# - curl: Health checks
+# - tini: Init system para manejo de señales
+# - libc6: Requerido por binario Go de Telegram
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libxml2 \
+    libxslt1.1 \
+    curl \
+    tini \
+    libc6 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && rm -rf /var/cache/apt/archives/*
+
+# Usuario non-root para seguridad
+# - Grupo y usuario 'osint' con UID/GID específicos para consistencia
+RUN groupadd -r -g 1000 osint && \
+    useradd -r -u 1000 -g osint -s /bin/bash -d /app osint
+
+WORKDIR /app
+
+# Copiar virtual environment desde builder (solo runtime, sin build tools)
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# -----------------------------------------------------------------------------
+# Copiar código de la aplicación (ordenado por frecuencia de cambio)
+# Los archivos que cambian menos frecuentemente van primero para mejor caching
+# -----------------------------------------------------------------------------
+
+# Configuración y frontend (cambia poco)
+COPY --chown=osint:osint config/ ./config/
+COPY --chown=osint:osint frontend/ ./frontend/
+
+# Módulos core de la aplicación
+COPY --chown=osint:osint db/ ./db/
+COPY --chown=osint:osint api/ ./api/
+COPY --chown=osint:osint tools/ ./tools/
+
+# Integraciones y agentes (lógica de negocio)
+COPY --chown=osint:osint integrations/ ./integrations/
+COPY --chown=osint:osint agents/ ./agents/
+
+# Servidor MCP de OSINT (expone herramientas via MCP protocol)
+COPY --chown=osint:osint osint_mcp/ ./osint_mcp/
+
+# Scripts y tests (útiles para debugging en producción)
+COPY --chown=osint:osint scripts/ ./scripts/
+COPY --chown=osint:osint tests/ ./tests/
+
+# Archivos principales (cambian más frecuentemente)
+COPY --chown=osint:osint app.py .
+COPY --chown=osint:osint pytest.ini .
+
+# -----------------------------------------------------------------------------
+# Telegram MCP Binary
+# -----------------------------------------------------------------------------
+# Binario Go pre-compilado para Linux x86-64 (AMD64)
+# - Implementa Model Context Protocol (MCP) para Telegram
+# - Comunicación via stdio (stdin/stdout JSON-RPC)
+# - Requiere TG_APP_ID y TG_API_HASH en runtime
+COPY --chown=osint:osint bin/telegram-mcp /app/bin/telegram-mcp
+RUN chmod +x /app/bin/telegram-mcp && \
+    # Verificar que el binario es ejecutable
+    /app/bin/telegram-mcp --help 2>/dev/null || true
+
+# -----------------------------------------------------------------------------
+# Directorios de datos persistentes
+# -----------------------------------------------------------------------------
+# Estos directorios deben montarse como volúmenes para persistencia:
+# - /app/data: Base de datos SQLite y reportes generados
+# - /app/data/telegram-session: Sesión autenticada de Telegram (IMPORTANTE)
+RUN mkdir -p /app/data /app/data/telegram-session /app/data/telegram_reports /app/logs && \
+    chown -R osint:osint /app/data /app/logs
+
+# -----------------------------------------------------------------------------
+# Script de entrada personalizado
+# -----------------------------------------------------------------------------
+COPY --chown=osint:osint docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# -----------------------------------------------------------------------------
+# Configuración de Supervisord (para modo multi-servicio)
+# -----------------------------------------------------------------------------
+COPY --chown=root:root docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# -----------------------------------------------------------------------------
+# Variables de entorno por defecto
+# -----------------------------------------------------------------------------
+# Estas pueden ser sobrescritas por docker-compose o --env-file
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    # Flask configuration
+    FLASK_APP=app.py \
+    FLASK_DEBUG=0 \
+    # Paths internos del contenedor (no cambiar)
+    DATABASE_PATH=/app/data/osint.db \
+    TELEGRAM_MCP_PATH=/app/bin/telegram-mcp \
+    TELEGRAM_SESSION_PATH=/app/data/telegram-session \
+    # Gunicorn configuration (ajustar según recursos del servidor)
+    GUNICORN_WORKERS=4 \
+    GUNICORN_THREADS=2 \
+    GUNICORN_TIMEOUT=120 \
+    GUNICORN_KEEPALIVE=5 \
+    # Telegram MCP Service (modo multi-servicio)
+    TELEGRAM_MCP_USE_SERVICE=true \
+    TELEGRAM_MCP_SERVICE_URL=http://localhost:5001 \
+    TELEGRAM_MCP_SERVICE_HOST=0.0.0.0 \
+    TELEGRAM_MCP_SERVICE_PORT=5001
+
+# Puertos: Flask API (5000) y Telegram MCP Service (5001)
+EXPOSE 5000 5001
+
+# -----------------------------------------------------------------------------
+# Health Check
+# -----------------------------------------------------------------------------
+# Docker y orquestadores usan esto para verificar que la app está funcionando
+# - interval: Cada 30 segundos
+# - timeout: Máximo 10 segundos para responder
+# - start-period: Esperar 20 segundos (tiempo para ambos servicios)
+# - retries: 3 fallos consecutivos = unhealthy
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:5000/api/runs && curl -f http://localhost:5001/health || exit 1
+
+# -----------------------------------------------------------------------------
+# Entrypoint y comando
+# -----------------------------------------------------------------------------
+# TINI como init system para manejo correcto de señales
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
+
+# Por defecto: Supervisord para ejecutar ambos servicios (Flask + Telegram MCP)
+# Alternativa: gunicorn solo (ver docker-compose para override)
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

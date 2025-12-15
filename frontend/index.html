@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINT News Aggregator</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- DOMPurify for sanitizing HTML -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🔍 OSINT News Aggregator</h1>
+            <p class="subtitle">Agent-based OSINT Collection & Analysis</p>
+        </header>
+
+        <!-- New Investigation Form -->
+        <section class="panel new-investigation">
+            <h2>➕ New Investigation</h2>
+            <form id="collectForm" class="collect-form">
+                <div class="form-row">
+                    <div class="form-group flex-grow">
+                        <label for="query">Query / Objective</label>
+                        <input type="text" id="query" name="query" 
+                               placeholder="e.g., cybersecurity news, ransomware attacks, CVE-2024-..." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="limit">Limit</label>
+                        <input type="number" id="limit" name="limit" value="20" min="1" max="100">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="since">Since (optional)</label>
+                        <input type="date" id="since" name="since">
+                    </div>
+                    <div class="form-group flex-grow">
+                        <label for="scope">Scope (optional domains)</label>
+                        <input type="text" id="scope" name="scope" 
+                               placeholder="e.g., example.com, target.org">
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary" id="collectBtn">
+                            🚀 Start Collection
+                        </button>
+                    </div>
+                </div>
+            </form>
+            <div id="collectStatus" class="status-message hidden"></div>
+        </section>
+
+        <!-- Filters -->
+        <section class="panel filters">
+            <h2>🔎 Filter Investigations</h2>
+            <form id="filterForm" class="filter-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="filterQ">Search Query</label>
+                        <input type="text" id="filterQ" name="q" placeholder="Search...">
+                    </div>
+                    <div class="form-group">
+                        <label for="filterStatus">Status</label>
+                        <select id="filterStatus" name="status">
+                            <option value="">All</option>
+                            <option value="started">Started</option>
+                            <option value="completed">Completed</option>
+                            <option value="partial">Partial</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="filterSince">Since</label>
+                        <input type="date" id="filterSince" name="since">
+                    </div>
+                    <div class="form-group">
+                        <label for="filterUntil">Until</label>
+                        <input type="date" id="filterUntil" name="until">
+                    </div>
+                    <div class="form-group btn-group">
+                        <button type="submit" class="btn btn-secondary">Apply</button>
+                        <button type="button" class="btn btn-outline" id="clearFilters">Clear</button>
+                    </div>
+                </div>
+            </form>
+            <div class="auto-refresh">
+                <label>
+                    <input type="checkbox" id="autoRefresh"> Auto-refresh (60s)
+                </label>
+            </div>
+        </section>
+
+        <!-- Investigations List -->
+        <section class="panel investigations">
+            <h2>📋 Investigations</h2>
+            <div id="runsList" class="runs-list">
+                <p class="loading">Loading...</p>
+            </div>
+        </section>
+
+        <!-- Run Detail -->
+        <section id="runDetail" class="panel run-detail hidden">
+            <div class="detail-header">
+                <h2>📄 Investigation Detail</h2>
+                <button class="btn btn-outline" id="closeDetail">✕ Close</button>
+            </div>
+            <div id="runDetailContent"></div>
+        </section>
+
+        <!-- Items List -->
+        <section id="itemsSection" class="panel items-section hidden">
+            <h2>📰 Evidence Items</h2>
+            <div id="itemsList" class="items-grid"></div>
+        </section>
+
+        <!-- Traces Section (Execution Timeline) -->
+        <section id="tracesSection" class="panel traces-section hidden">
+            <div class="traces-header">
+                <h2>🔬 Execution Traces</h2>
+                <div class="traces-controls">
+                    <select id="tracesFilter" class="traces-filter">
+                        <option value="">All Types</option>
+                        <option value="tool_call">Tool Calls</option>
+                        <option value="agent_action">Agent Actions</option>
+                        <option value="llm_reasoning">LLM Reasoning</option>
+                        <option value="decision">Decisions</option>
+                        <option value="error">Errors</option>
+                    </select>
+                    <button class="btn btn-outline btn-sm" id="toggleTraceData">Show Data</button>
+                </div>
+            </div>
+            
+            <!-- Traces Summary -->
+            <div id="tracesSummary" class="traces-summary"></div>
+            
+            <!-- Traces Timeline -->
+            <div id="tracesTimeline" class="traces-timeline"></div>
+            
+            <!-- Trace Detail Modal -->
+            <div id="traceDetailModal" class="trace-detail-modal hidden">
+                <div class="trace-detail-content">
+                    <div class="trace-detail-header">
+                        <h3>Trace Detail</h3>
+                        <button class="btn btn-outline btn-sm" onclick="closeTraceDetail()">✕</button>
+                    </div>
+                    <div id="traceDetailBody"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>⚠️ Confirm Deletion</h3>
+            <p>Are you sure you want to delete this investigation?</p>
+            <p>This will remove all associated items and reports.</p>
+            <div class="modal-actions">
+                <button class="btn btn-outline" id="cancelDelete">Cancel</button>
+                <button class="btn btn-danger" id="confirmDelete">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

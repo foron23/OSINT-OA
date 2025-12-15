@@ -1,0 +1,234 @@
+# =============================================================================
+# OSINT News Aggregator - Production Docker Compose
+# =============================================================================
+# Configuración completa para despliegue en producción
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │                         GUÍA DE DESPLIEGUE                              │
+# ├─────────────────────────────────────────────────────────────────────────┤
+# │                                                                          │
+# │ REQUISITOS PREVIOS:                                                      │
+# │ 1. Docker Engine 20.10+ instalado                                       │
+# │ 2. Docker Compose v2.0+ instalado                                       │
+# │ 3. Archivo .env configurado (ver .env.example)                          │
+# │                                                                          │
+# │ PASOS DE DESPLIEGUE:                                                    │
+# │                                                                          │
+# │ 1. Copiar archivos al servidor:                                         │
+# │    scp -r . usuario@servidor:/opt/osint-aggregator                      │
+# │                                                                          │
+# │ 2. Configurar variables de entorno:                                     │
+# │    cp .env.example .env                                                 │
+# │    nano .env  # Editar con tus API keys                                 │
+# │                                                                          │
+# │ 3. Construir y levantar:                                                │
+# │    docker-compose -f docker-compose.prod.yml build                      │
+# │    docker-compose -f docker-compose.prod.yml up -d                      │
+# │                                                                          │
+# │ 4. Verificar estado:                                                    │
+# │    docker-compose -f docker-compose.prod.yml ps                         │
+# │    docker-compose -f docker-compose.prod.yml logs -f                    │
+# │                                                                          │
+# │ 5. Configurar Telegram (primera vez):                                   │
+# │    docker-compose -f docker-compose.prod.yml exec osint-aggregator \    │
+# │      python scripts/setup-telegram.py                                    │
+# │                                                                          │
+# │ ACTUALIZACIONES:                                                        │
+# │    docker-compose -f docker-compose.prod.yml pull                       │
+# │    docker-compose -f docker-compose.prod.yml up -d --build              │
+# │                                                                          │
+# │ BACKUP:                                                                  │
+# │    docker run --rm -v osint-news-data-prod:/data -v $(pwd):/backup \   │
+# │      alpine tar czf /backup/osint-backup-$(date +%Y%m%d).tar.gz /data   │
+# │                                                                          │
+# └─────────────────────────────────────────────────────────────────────────┘
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # ===========================================================================
+  # OSINT News Aggregator - Main Application
+  # ===========================================================================
+  osint-aggregator:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      # Cache de layers para builds más rápidos
+      cache_from:
+        - osint-aggregator:latest
+    
+    image: osint-aggregator:prod
+    container_name: osint-news-aggregator-prod
+    hostname: osint-aggregator
+    
+    # Política de reinicio para producción
+    restart: always
+    
+    # ==========================================================================
+    # Puertos
+    # ==========================================================================
+    ports:
+      # Puerto configurable via .env, default 5000
+      - "${HOST_PORT:-5000}:5000"
+      # Puerto interno del servicio Telegram MCP (solo si se necesita acceso externo)
+      # - "${TELEGRAM_MCP_PORT:-5001}:5001"
+    
+    # ==========================================================================
+    # Variables de Entorno
+    # ==========================================================================
+    # Cargar todas las variables desde .env
+    env_file:
+      - .env
+    
+    # Variables específicas para el contexto Docker (sobrescriben .env)
+    environment:
+      # Desactivar debug en producción
+      - FLASK_DEBUG=0
+      - FLASK_ENV=production
+      
+      # Paths dentro del contenedor (no modificar)
+      - DATABASE_PATH=/app/data/osint.db
+      - TELEGRAM_MCP_PATH=/app/bin/telegram-mcp
+      - TELEGRAM_SESSION_PATH=/app/data/telegram-session
+      
+      # Gunicorn (ajustar según recursos del servidor)
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+      - GUNICORN_THREADS=${GUNICORN_THREADS:-2}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
+      
+      # Telegram MCP Service (modo multi-servicio)
+      # true = usar servicio HTTP persistente (recomendado)
+      # false = ejecutar binario on-demand (más lento)
+      - TELEGRAM_MCP_USE_SERVICE=${TELEGRAM_MCP_USE_SERVICE:-true}
+      - TELEGRAM_MCP_SERVICE_URL=http://localhost:5001
+      - TELEGRAM_MCP_SERVICE_HOST=0.0.0.0
+      - TELEGRAM_MCP_SERVICE_PORT=5001
+    
+    # ==========================================================================
+    # Volúmenes Persistentes
+    # ==========================================================================
+    volumes:
+      # Base de datos SQLite y reportes generados
+      # IMPORTANTE: Este volumen contiene todos los datos de la aplicación
+      - osint-data:/app/data
+      
+      # Sesión de Telegram (autenticación persistente)
+      # OPCIÓN 1: Montar desde el host (si existe ~/.telegram-mcp o $TELEGRAM_SESSION_HOST_PATH)
+      # OPCIÓN 2: Usar volumen Docker (si no hay sesión en el host)
+      # Por defecto usa el volumen. Para montar desde host, añade en .env:
+      #   TELEGRAM_SESSION_HOST_PATH=/home/tu_usuario/.telegram-mcp
+      - ${TELEGRAM_SESSION_HOST_PATH:-telegram-session}:/app/data/telegram-session
+      
+      # Logs de la aplicación (opcional, para debugging)
+      - osint-logs:/app/logs
+    
+    # ==========================================================================
+    # Health Check
+    # ==========================================================================
+    # Verifica Flask API (obligatorio) y Telegram MCP Service (opcional)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/runs && (curl -f http://localhost:5001/health || true)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+    
+    # ==========================================================================
+    # Límites de Recursos
+    # ==========================================================================
+    # Ajustar según el servidor de destino
+    deploy:
+      resources:
+        limits:
+          # Máximo 4 CPUs y 4GB RAM
+          cpus: '4'
+          memory: 4G
+        reservations:
+          # Mínimo garantizado
+          cpus: '1'
+          memory: 1G
+      
+      # Política de reinicio para Docker Swarm (si se usa)
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+    
+    # ==========================================================================
+    # Logging
+    # ==========================================================================
+    logging:
+      driver: "json-file"
+      options:
+        # Rotación de logs: máximo 50MB por archivo, 5 archivos
+        max-size: "50m"
+        max-file: "5"
+        # Añadir labels para mejor identificación
+        labels: "service,environment"
+    
+    # ==========================================================================
+    # Seguridad
+    # ==========================================================================
+    security_opt:
+      # Prevenir escalación de privilegios
+      - no-new-privileges:true
+    
+    # Sistema de archivos temporal para /tmp
+    tmpfs:
+      - /tmp:size=100M,mode=1777
+    
+    # Labels para identificación
+    labels:
+      - "com.osint.service=aggregator"
+      - "com.osint.environment=production"
+      - "com.osint.version=2.0.0"
+    
+    # Dependencias de red
+    networks:
+      - osint-network
+
+# =============================================================================
+# Volúmenes Nombrados
+# =============================================================================
+# Estos volúmenes persisten datos entre reinicios y actualizaciones
+volumes:
+  # Base de datos SQLite y archivos generados
+  osint-data:
+    driver: local
+    name: osint-news-data-prod
+    labels:
+      - "com.osint.volume=data"
+      - "com.osint.backup=required"
+  
+  # Sesión autenticada de Telegram MCP
+  # CRÍTICO: Preserva la autenticación con Telegram
+  telegram-session:
+    driver: local
+    name: osint-telegram-session-prod
+    labels:
+      - "com.osint.volume=telegram-session"
+      - "com.osint.backup=required"
+  
+  # Logs de la aplicación
+  osint-logs:
+    driver: local
+    name: osint-logs-prod
+    labels:
+      - "com.osint.volume=logs"
+      - "com.osint.backup=optional"
+
+# =============================================================================
+# Redes
+# =============================================================================
+networks:
+  osint-network:
+    name: osint-network-prod
+    driver: bridge
+    # Configuración de red personalizada (opcional)
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+
