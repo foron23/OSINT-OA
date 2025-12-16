@@ -112,16 +112,37 @@ LABEL org.opencontainers.image.source="https://github.com/your-org/osint-news-ag
 # - curl: Health checks
 # - tini: Init system para manejo de señales
 # - libc6: Requerido por binario Go de Telegram
+# - git: Requerido por bbot para algunos módulos
+# - dnsutils: DNS lookups para herramientas OSINT
+# - whois: WHOIS lookups para dominios
+# - wget, unzip: Para descargar binarios
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2 \
     libxslt1.1 \
     curl \
+    wget \
+    unzip \
     tini \
     libc6 \
     ca-certificates \
+    git \
+    dnsutils \
+    whois \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && rm -rf /var/cache/apt/archives/*
+
+# Install Go tools (Amass and PhoneInfoga) as pre-compiled binaries
+# Amass - OWASP attack surface mapping
+RUN curl -L -o /tmp/amass.zip https://github.com/owasp-amass/amass/releases/download/v4.2.0/amass_Linux_amd64.zip && \
+    unzip -j /tmp/amass.zip "amass_Linux_amd64/amass" -d /usr/local/bin/ && \
+    chmod +x /usr/local/bin/amass && \
+    rm /tmp/amass.zip
+
+# PhoneInfoga - Phone number OSINT
+RUN curl -sSL https://github.com/sundowndev/phoneinfoga/releases/download/v2.11.0/phoneinfoga_Linux_x86_64.tar.gz | \
+    tar -xz -C /usr/local/bin phoneinfoga && \
+    chmod +x /usr/local/bin/phoneinfoga
 
 # Usuario non-root para seguridad
 # - Grupo y usuario 'osint' con UID/GID específicos para consistencia

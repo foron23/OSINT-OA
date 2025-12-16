@@ -82,19 +82,61 @@ mcp/
 
 All tools inherit from `langchain_core.tools.BaseTool`:
 
+### Search & Scraping Tools
+
 | Tool | Description | API Required |
 |------|-------------|--------------|
 | `TavilySearchTool` | AI-powered web search | TAVILY_API_KEY |
 | `DuckDuckGoSearchTool` | Free web search | None |
 | `GoogleDorkBuilderTool` | Advanced Google dorks | None |
 | `WebScraperTool` | HTML content extraction | None |
+
+### Analysis Tools
+
+| Tool | Description | API Required |
+|------|-------------|--------------|
 | `IOCExtractorTool` | Extract IPs, CVEs, hashes | None |
 | `TagExtractorTool` | Security tag extraction | None |
-| `TelegramPublishTool` | Telegram publishing | TELEGRAM_BOT_TOKEN |
+
+### OSINT Tools (Identity & Domain)
+
+| Tool | Description | API Required |
+|------|-------------|--------------|
+| `MaigretUsernameTool` | Username search across 500+ sites | None |
+| `MaigretReportTool` | Generate username OSINT reports | None |
+| `BbotSubdomainTool` | Subdomain enumeration | None |
+| `BbotWebScanTool` | Web reconnaissance | None |
+| `BbotEmailTool` | Email harvesting | None |
+| `HoleheEmailTool` | Email registration checker (100+ sites) | None |
+| `AmassEnumTool` | OWASP Amass subdomain enum | None |
+| `AmassIntelTool` | Organization domain discovery | None |
+| `PhoneInfogaScanTool` | Phone number OSINT | None |
+
+### Integration Tools
+
+| Tool | Description | API Required |
+|------|-------------|--------------|
+| `TelegramPublishTool` | Telegram publishing | TELEGRAM_* |
 | `MCPSearchTool` | MCP server integration | None |
 | `MCPNormalizeTool` | Item normalization via MCP | None |
 
 ### Tool Usage Example
+
+```python
+from tools import MaigretUsernameTool, HoleheEmailTool, AmassEnumTool
+
+# Username OSINT
+maigret = MaigretUsernameTool()
+result = maigret.invoke({"username": "john_doe", "top_sites": 50})
+
+# Email registration check
+holehe = HoleheEmailTool()
+result = holehe.invoke({"email": "user@example.com"})
+
+# Subdomain enumeration  
+amass = AmassEnumTool()
+result = amass.invoke({"domain": "example.com", "passive": True})
+```
 
 ```python
 from agents.langchain_tools import TavilySearchTool

@@ -608,29 +608,154 @@ class TelegramReportPublisher:
         query: str,
         stats: Dict[str, Any]
     ) -> str:
-        """Format the report for Telegram."""
-        header = f"""🔍 **OSINT Intelligence Report**
-📅 {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}
-🎯 Query: `{query}`
+        """Format the report for Telegram with rich formatting.
+        
+        Uses Telegram Markdown V2 compatible formatting with:
+        - Clear visual hierarchy with emojis
+        - Structured sections
+        - Actionable insights highlighted
+        - Compact but informative layout
+        """
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M UTC')
+        
+        # Build header with query info
+        header = f"""🔍 **INFORME DE INTELIGENCIA OSINT**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+📋 **Consulta:** `{query}`
+🕐 **Fecha:** {timestamp}
 """
         
+        # Build statistics section if available
+        stats_section = ""
         if stats:
-            stats_section = f"""📊 **Statistics**
-• Items collected: {stats.get('total_results', 'N/A')}
-• Sources: {', '.join(stats.get('sources_used', ['N/A']))}
+            total = stats.get('total_results', 0)
+            sources = stats.get('sources_used', [])
+            duration = stats.get('duration_seconds', 0)
+            
+            # Determine severity/importance indicator
+            if total == 0:
+                indicator = "⚪"
+                status = "Sin resultados"
+            elif total < 5:
+                indicator = "🟢"
+                status = "Baja exposición"
+            elif total < 15:
+                indicator = "🟡"
+                status = "Exposición moderada"
+            else:
+                indicator = "🔴"
+                status = "Alta exposición"
+            
+            stats_section = f"""
+📊 **ESTADÍSTICAS**
+├─ {indicator} Estado: {status}
+├─ 📈 Resultados: {total}
+├─ 🔌 Fuentes: {', '.join(sources) if sources else 'N/A'}
+└─ ⏱️ Duración: {duration:.1f}s
 
 """
-        else:
-            stats_section = ""
         
-        full_message = header + stats_section + report
+        # Process report content for better formatting
+        formatted_report = self._enhance_report_formatting(report)
         
-        # Telegram message limit
-        if len(full_message) > 4000:
-            full_message = full_message[:3950] + "\n\n... _[Report truncated]_"
+        # Build footer
+        footer = """
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🤖 _Generado por OSINT News Aggregator_
+🔗 _Powered by LangChain + BBOT + Maigret_"""
+        
+        full_message = header + stats_section + formatted_report + footer
+        
+        # Telegram message limit (4096 chars) - leave room for potential escaping
+        if len(full_message) > 3900:
+            # Try to truncate intelligently at paragraph breaks
+            truncated = self._smart_truncate(full_message, 3800)
+            full_message = truncated + "\n\n⚠️ _[Informe truncado - Ver documento completo para detalles]_" + footer
         
         return full_message
+    
+    def _enhance_report_formatting(self, report: str) -> str:
+        """Enhance report formatting with visual indicators.
+        
+        Adds emojis and structure to common OSINT report sections.
+        """
+        import re
+        
+        # Section headers mappings
+        section_emojis = {
+            r'(#+\s*)?(Subdominios?|Subdomains?)': '🌐 **SUBDOMINIOS**',
+            r'(#+\s*)?(Perfiles?|Profiles?|Cuentas?|Accounts?)': '👤 **PERFILES ENCONTRADOS**',
+            r'(#+\s*)?(Emails?|Correos?)': '📧 **DIRECCIONES DE EMAIL**',
+            r'(#+\s*)?(Tecnolog[íi]as?|Technologies?|Tech Stack)': '⚙️ **TECNOLOGÍAS DETECTADAS**',
+            r'(#+\s*)?(DNS|Registros? DNS)': '🔗 **REGISTROS DNS**',
+            r'(#+\s*)?(Vulnerabilidades?|Vulnerabilities?)': '⚠️ **VULNERABILIDADES**',
+            r'(#+\s*)?(Resumen|Summary|Conclusi[óo]n)': '📋 **RESUMEN**',
+            r'(#+\s*)?(Recomendaciones?|Recommendations?)': '💡 **RECOMENDACIONES**',
+            r'(#+\s*)?(Hallazgos?|Findings?)': '🔎 **HALLAZGOS**',
+            r'(#+\s*)?(Redes Sociales|Social Media)': '📱 **REDES SOCIALES**',
+            r'(#+\s*)?(Fuentes?|Sources?)': '📚 **FUENTES**',
+        }
+        
+        enhanced = report
+        for pattern, replacement in section_emojis.items():
+            enhanced = re.sub(pattern, replacement, enhanced, flags=re.IGNORECASE)
+        
+        # Highlight URLs 
+        enhanced = re.sub(
+            r'(https?://[^\s\)]+)',
+            r'`\1`',
+            enhanced
+        )
+        
+        # Format list items with better bullets
+        enhanced = re.sub(r'^[-*]\s+', '• ', enhanced, flags=re.MULTILINE)
+        enhanced = re.sub(r'^\d+\.\s+', '▸ ', enhanced, flags=re.MULTILINE)
+        
+        # Highlight important findings (wrapped in ** for bold)
+        warning_patterns = [
+            r'(exposed|expuesto)',
+            r'(vulnerable|vulnerabilidad)',
+            r'(crítico|critical)',
+            r'(leaked|filtrado)',
+            r'(sensitive|sensible)',
+        ]
+        for pattern in warning_patterns:
+            enhanced = re.sub(
+                pattern,
+                r'⚠️ **\1**',
+                enhanced,
+                flags=re.IGNORECASE
+            )
+        
+        return enhanced
+    
+    def _smart_truncate(self, text: str, max_length: int) -> str:
+        """Truncate text intelligently at paragraph or sentence boundaries."""
+        if len(text) <= max_length:
+            return text
+        
+        # Try to find a good break point
+        truncated = text[:max_length]
+        
+        # Try paragraph break first (double newline)
+        last_para = truncated.rfind('\n\n')
+        if last_para > max_length * 0.7:
+            return truncated[:last_para]
+        
+        # Try single newline
+        last_newline = truncated.rfind('\n')
+        if last_newline > max_length * 0.8:
+            return truncated[:last_newline]
+        
+        # Try sentence end
+        for end_char in ['. ', '! ', '? ']:
+            last_sentence = truncated.rfind(end_char)
+            if last_sentence > max_length * 0.8:
+                return truncated[:last_sentence + 1]
+        
+        # Fall back to hard truncate
+        return truncated
     
     async def _save_report_locally(
         self,
@@ -653,6 +778,157 @@ class TelegramReportPublisher:
             return {"success": True, "saved_to_file": report_file, "original_error": error}
         except Exception as save_error:
             return {"success": False, "error": error, "save_error": str(save_error)}
+    
+    async def send_alert(
+        self,
+        title: str,
+        description: str,
+        severity: str = "info",
+        details: Optional[Dict[str, Any]] = None,
+        dialog_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Send a security alert to Telegram.
+        
+        Args:
+            title: Alert title
+            description: Alert description
+            severity: One of 'critical', 'high', 'medium', 'low', 'info'
+            details: Additional details dict
+            dialog_name: Target dialog (or use default)
+            
+        Returns:
+            Send result
+        """
+        target = dialog_name or self.target_dialog
+        if not target:
+            self.logger.warning("No target dialog for alert")
+            return {"success": False, "error": "No target dialog"}
+        
+        message = self._format_alert_message(title, description, severity, details)
+        return await self.client.send_message(target, message)
+    
+    def _format_alert_message(
+        self,
+        title: str,
+        description: str,
+        severity: str,
+        details: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Format an alert message for Telegram."""
+        severity_map = {
+            'critical': ('🚨', 'CRÍTICO', '🔴'),
+            'high': ('⚠️', 'ALTO', '🟠'),
+            'medium': ('⚡', 'MEDIO', '🟡'),
+            'low': ('ℹ️', 'BAJO', '🟢'),
+            'info': ('📌', 'INFO', '🔵'),
+        }
+        
+        emoji, label, indicator = severity_map.get(severity.lower(), ('📌', 'INFO', '🔵'))
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M UTC')
+        
+        message = f"""{emoji} **ALERTA OSINT - {label}**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{indicator} **{title}**
+
+{description}
+"""
+        
+        if details:
+            message += "\n📋 **Detalles:**\n"
+            for key, value in details.items():
+                if isinstance(value, list):
+                    value = ', '.join(str(v) for v in value[:5])
+                    if len(details[key]) > 5:
+                        value += f"... (+{len(details[key]) - 5} más)"
+                message += f"├─ {key}: `{value}`\n"
+        
+        message += f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🕐 {timestamp}
+🤖 _OSINT News Aggregator_"""
+        
+        return message
+    
+    async def send_summary(
+        self,
+        title: str,
+        findings: List[Dict[str, Any]],
+        dialog_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Send a summary of multiple findings.
+        
+        Args:
+            title: Summary title
+            findings: List of finding dicts with 'type', 'count', 'items' keys
+            dialog_name: Target dialog
+            
+        Returns:
+            Send result
+        """
+        target = dialog_name or self.target_dialog
+        if not target:
+            return {"success": False, "error": "No target dialog"}
+        
+        message = self._format_summary_message(title, findings)
+        return await self.client.send_message(target, message)
+    
+    def _format_summary_message(
+        self,
+        title: str,
+        findings: List[Dict[str, Any]]
+    ) -> str:
+        """Format a summary message."""
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M UTC')
+        
+        # Calculate totals
+        total_items = sum(f.get('count', 0) for f in findings)
+        
+        type_emojis = {
+            'subdomain': '🌐',
+            'profile': '👤',
+            'email': '📧',
+            'technology': '⚙️',
+            'vulnerability': '⚠️',
+            'dns': '🔗',
+            'social': '📱',
+            'leak': '🔓',
+            'default': '📌',
+        }
+        
+        message = f"""📊 **RESUMEN OSINT**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 **{title}**
+📈 **Total de hallazgos:** {total_items}
+
+"""
+        
+        for finding in findings:
+            ftype = finding.get('type', 'default').lower()
+            emoji = type_emojis.get(ftype, type_emojis['default'])
+            count = finding.get('count', 0)
+            items = finding.get('items', [])
+            
+            message += f"{emoji} **{ftype.title()}** ({count})\n"
+            
+            # Show first few items
+            for item in items[:3]:
+                if isinstance(item, dict):
+                    item_text = item.get('name') or item.get('url') or str(item)
+                else:
+                    item_text = str(item)
+                message += f"   • `{item_text[:50]}`\n"
+            
+            if len(items) > 3:
+                message += f"   _... y {len(items) - 3} más_\n"
+            message += "\n"
+        
+        message += f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🕐 {timestamp}
+🤖 _OSINT News Aggregator_"""
+        
+        return message
 
 
 # Convenience functions

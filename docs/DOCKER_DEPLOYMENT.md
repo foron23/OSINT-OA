@@ -103,6 +103,17 @@ El contenedor soporta **dos modos** de operación para Telegram MCP:
 | **Non-root user** | Seguridad - el contenedor nunca corre como root |
 | **Volúmenes nombrados** | Persistencia de datos entre actualizaciones |
 | **Telegram MCP Service** | Conexión persistente = menor latencia vs ejecutar binario cada vez |
+| **Go binaries incluidos** | Amass y PhoneInfoga pre-compilados en la imagen |
+
+### Herramientas OSINT Incluidas
+
+| Herramienta | Tipo | Descripción |
+|-------------|------|-------------|
+| **Maigret** | Python | Búsqueda de usernames en 500+ sitios |
+| **BBOT** | Python | Enumeración de subdominios, web recon |
+| **Holehe** | Python | Verificación de emails en 100+ sitios |
+| **Amass** | Go binary | OWASP subdomain enumeration |
+| **PhoneInfoga** | Go binary | OSINT de números telefónicos |
 
 ---
 

@@ -5,50 +5,102 @@ All notable changes to OSINT Agentic Operations will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.1] - 2025-12-15
+## [1.2.0] - 2025-12-16
 
-### 🐛 Bug Fixes
+### 🔧 OSINT Tools Enhancement & New Integrations
 
-#### Docker Volume Permissions
-- **Fixed database read-only error**: Added `fix_permissions()` function in entrypoint that automatically corrects volume permissions when Docker volumes are mounted
-- **Telegram session loading**: Fixed bind mount configuration for `./telegram-session` directory to properly load existing sessions
+Major update focused on expanding OSINT capabilities with new tools and improving existing ones.
 
-#### Frontend Improvements
-- **Evidence Items section**: Now extracts and displays structured findings from investigation reports
-  - Parses markdown reports to extract key findings, links, and IOCs
-  - Shows IOCs in a dedicated badge format
-  - Displays section context for each finding
+### Added
 
-### ✨ Enhancements
+#### New OSINT Tools (No API Keys Required)
+- **HoleheEmailTool** (`tools/holehe.py`): Email registration checker across 100+ platforms
+  - Checks if email is registered without alerting the target
+  - Uses password recovery endpoints for detection
+  - Non-intrusive, stealth operation
+  
+- **AmassEnumTool** (`tools/amass.py`): OWASP Amass subdomain enumeration
+  - Passive and active enumeration modes
+  - Uses 20+ data sources (Certificate Transparency, DNS, etc.)
+  - Industry-standard attack surface mapping
+  
+- **AmassIntelTool** (`tools/amass.py`): Organization domain discovery
+  - Discovers root domains from organization names
+  - Useful for initial reconnaissance
+  
+- **PhoneInfogaScanTool** (`tools/phoneinfoga.py`): Phone number OSINT
+  - Country, carrier, and line type detection
+  - Number validation and normalization
+  - Social media footprint scanning
 
-#### Matrix-Style UI Effects
-- Added subtle Matrix-inspired animations to the hacker theme:
-  - Scanline effect overlay
-  - Flicker animation for CRT monitor feel
-  - Pulse glow on interactive elements
-  - Fade-in animations for cards and panels
-  - Terminal cursor blink on header
-- All animations respect `prefers-reduced-motion` accessibility setting
+#### Unified Test Suite
+- `tests/test_osint_tools.py`: **63 tests** covering all OSINT tools
+  - Maigret: instantiation, availability, parsing, mock/real execution, validation
+  - BBOT: instantiation, availability, parsing, mock/real execution, validation
+  - Holehe: instantiation, schema, availability, parsing, integration
+  - Amass: instantiation, schema, availability, mock execution, integration
+  - PhoneInfoga: instantiation, schema, availability, parsing, integration
+  - Module integration: exports, getters, categories
 
-#### Improved Error Handling
-- Backend now returns specific error types (`database_readonly`, `database_locked`, etc.)
-- Frontend translates technical errors to user-friendly messages
-- Better error messages guide users on how to resolve issues
+#### Docker Improvements
+- Added `git`, `dnsutils`, `whois` to Dockerfiles (required by BBOT)
+- Pre-compiled Amass v4.2.0 binary included
+- Pre-compiled PhoneInfoga v2.11.0 binary included
+- Updated `requirements.txt` with `holehe>=1.61`
 
-### 🔧 Changes
+#### Telegram Message Formatting
+- Rich message formatting with emojis and visual hierarchy
+- Severity indicators (🟢🟡🔴) based on exposure level
+- Smart truncation at paragraph/sentence boundaries
+- New `send_alert()` method for security alerts
+- New `send_summary()` method for multi-finding summaries
+- Section headers with context-aware emojis
 
-#### Rebranding
-- Renamed from "OSINT News Aggregator" to "OSINT Aggregator" throughout
-- Updated page title, headers, and documentation
+### Changed
 
-#### Docker Compose
-- Removed obsolete `version` attribute from docker-compose files
-- Improved documentation in docker-compose.prod.yml
-- Changed telegram-session from Docker volume to bind mount for easier session management
+#### BBOT Tool Fixes
+- Fixed CLI syntax from `-m modules -f flags` to `-p preset -rf require_flags`
+- Corrected presets: `subdomain-enum`, `web-basic`, `email-enum`
+- Fixed NDJSON parsing for proper output handling
+- Added partial results recovery on timeout
 
-### 📚 Documentation
-- Updated CHANGELOG with v1.0.1 changes
-- Added Telegram usage guide section
+#### Maigret Tool Fixes  
+- Fixed output syntax from `--json file` to `-J ndjson -fo folder`
+- Corrected status parsing from nested `entry["status"]["status"]`
+- Fixed output file discovery pattern `*_ndjson.json`
+
+#### Agent Prompts Updated
+- `agents/osint/bbot.py`: Updated with correct tool parameters and presets
+- `agents/osint/maigret.py`: Updated with correct CLI syntax and methodology
+
+#### Tools Module Reorganization
+- Added `get_holehe_tools()`, `get_amass_tools()`, `get_phoneinfoga_tools()` functions
+- Updated `get_identity_tools()` to include Holehe and PhoneInfoga
+- Added `get_domain_tools()` combining BBOT and Amass
+- Updated `get_all_tools()` with new tools
+
+### Documentation
+- Updated `docs/LANGCHAIN_ARCHITECTURE.md` with new tools table
+- Updated `docs/DOCKER_DEPLOYMENT.md` with OSINT tools section
+- Updated `docs/DESARROLLO.md` with v1.3 changes
+- Updated `docs/OSINT_TOOLS_SUGGESTIONS.md` marking implemented tools
+- Added ethical use disclaimer to README
+
+### Fixed
+- BBOT subprocess timeout handling with partial result recovery
+- Maigret output file discovery with glob patterns
+- Docker missing dependencies for OSINT tools
+
+---
+
+## [1.1.0] - 2024-12-15
+
+### 🛠️ OSINT Tools Integration
+
+### Added
+- **Maigret Integration** (`tools/maigret.py`): Username OSINT across 500+ platforms
+- **BBOT Integration** (`tools/bbot.py`): Attack surface enumeration
+- Modern OSINT tools replacing deprecated OSRFramework
 
 ---
 

@@ -84,16 +84,17 @@ async def _run_maigret_async(
     
     # Create temporary directory for output
     with tempfile.TemporaryDirectory() as tmpdir:
-        output_path = Path(tmpdir) / f"maigret_{username}"
+        output_dir = Path(tmpdir)
         
+        # Build command according to maigret documentation
+        # maigret USERNAME --top-sites N --timeout T -J ndjson -fo OUTPUT_FOLDER
         cmd = [
             'maigret',
             username,
             '--timeout', str(timeout),
             '--top-sites', str(top_sites),
-            f'--{output_format}', str(output_path.with_suffix(f'.{output_format}')),
-            '--no-progressbar',
-            '--no-color',
+            '-J', 'ndjson',  # JSON output in ndjson format
+            '-fo', str(output_dir),  # folder output
         ]
         
         try:
@@ -105,36 +106,66 @@ async def _run_maigret_async(
             
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(),
-                timeout=timeout * top_sites / 10 + 60  # Dynamic timeout based on sites
+                timeout=timeout * top_sites / 10 + 120  # Dynamic timeout based on sites
             )
             
-            # Parse JSON output if available
-            json_file = output_path.with_suffix('.json')
-            if json_file.exists():
-                with open(json_file, 'r') as f:
-                    data = json.load(f)
-                    return {
-                        "success": True,
-                        "username": username,
-                        "sites_checked": top_sites,
-                        "results": data,
-                        "error": None
-                    }
-            
-            # Parse stdout for results
-            output = stdout.decode('utf-8', errors='ignore')
+            # Parse NDJSON output - maigret creates files like: report_USERNAME_ndjson.json
             found_sites = []
             
-            for line in output.split('\n'):
-                if '[+]' in line or 'Positive' in line:
-                    # Extract site name from output
-                    parts = line.strip().split()
-                    if len(parts) >= 2:
-                        site_info = {
-                            "site": parts[-1] if parts[-1].startswith('http') else ' '.join(parts[1:]),
-                            "status": "found"
-                        }
-                        found_sites.append(site_info)
+            def extract_site_info(entry: dict) -> dict:
+                """Extract site info from maigret entry, handling nested status."""
+                # Status can be nested in entry["status"]["status"] or directly in entry["status"]
+                status_data = entry.get("status", {})
+                if isinstance(status_data, dict):
+                    status_str = status_data.get("status", "")
+                    site_name = status_data.get("site_name", entry.get("sitename", ""))
+                else:
+                    status_str = str(status_data)
+                    site_name = entry.get("sitename", "")
+                
+                return {
+                    "site": site_name or entry.get("sitename", ""),
+                    "url": entry.get("url_user", entry.get("url", "")),
+                    "status": status_str
+                }
+            
+            # Look for all json/ndjson files in output directory (maigret uses *_ndjson.json format)
+            for output_file in list(output_dir.glob(f"*{username}*.json")) + list(output_dir.glob(f"*{username}*.ndjson")):
+                try:
+                    with open(output_file, 'r') as f:
+                        content = f.read()
+                        # Try parsing as NDJSON (one JSON object per line)
+                        for line in content.strip().split('\n'):
+                            line = line.strip()
+                            if line:
+                                try:
+                                    entry = json.loads(line)
+                                    info = extract_site_info(entry)
+                                    if info["status"].lower() in ["claimed", "found"]:
+                                        found_sites.append(info)
+                                except json.JSONDecodeError:
+                                    continue
+                except Exception as e:
+                    logger.debug(f"Error reading {output_file}: {e}")
+            
+            # Parse stdout for results if no files found
+            if not found_sites:
+                output = stdout.decode('utf-8', errors='ignore')
+                for line in output.split('\n'):
+                    if '[+]' in line or 'Claimed' in line:
+                        # Extract site info from output line
+                        parts = line.strip().split()
+                        url = None
+                        for part in parts:
+                            if part.startswith('http'):
+                                url = part
+                                break
+                        if url:
+                            found_sites.append({
+                                "site": url.split('/')[2] if len(url.split('/')) > 2 else url,
+                                "url": url,
+                                "status": "found"
+                            })
             
             return {
                 "success": True,
@@ -142,7 +173,6 @@ async def _run_maigret_async(
                 "sites_checked": top_sites,
                 "found_count": len(found_sites),
                 "results": found_sites,
-                "raw_output": output[:2000] if len(output) > 2000 else output,
                 "error": None
             }
             
@@ -185,14 +215,20 @@ class MaigretUsernameTool(BaseTool):
     """
     Search for a username across social media platforms using Maigret.
     
-    Maigret is more accurate and comprehensive than OSRFramework's usufy,
-    supporting 500+ platforms with better detection algorithms.
+    Maigret searches 500+ platforms including:
+    - Social media (Twitter, Instagram, TikTok, etc.)
+    - Professional networks (LinkedIn, GitHub, etc.)
+    - Forums and communities
+    - Gaming platforms
+    - Dating sites
     """
     
     name: str = "maigret_username_search"
     description: str = """Search for a username across 500+ social media and web platforms.
-    Uses Maigret for accurate username enumeration and OSINT.
-    Returns: List of platforms where the username was found with profile URLs."""
+Uses Maigret for comprehensive username OSINT and profile discovery.
+Input: username (exact string), timeout (seconds, default 30), top_sites (number of sites to check, default 100)
+Returns: List of platforms where the username was found with profile URLs.
+Example usage: Find all social media accounts for username 'johndoe123'."""
     args_schema: Type[BaseModel] = MaigretUsernameInput
     
     def _run(
@@ -227,15 +263,18 @@ class MaigretReportTool(BaseTool):
     Generate a detailed Maigret report for a username.
     
     Performs comprehensive analysis including:
-    - Username found across platforms
+    - Deep search across 300+ platforms
     - Profile consistency analysis
     - Cross-platform correlation
+    - Online identity strength assessment
     """
     
     name: str = "maigret_report"
     description: str = """Generate a comprehensive OSINT report for a username.
-    Searches all available platforms and generates detailed findings.
-    Returns: Structured report with all discovered profiles."""
+Performs deep search across 300 platforms with detailed analysis.
+Input: username (exact string), format (default 'json')
+Returns: Structured report with all discovered profiles and identity analysis.
+Example usage: Get detailed identity report for a person of interest."""
     args_schema: Type[BaseModel] = MaigretReportInput
     
     def _run(

@@ -51,12 +51,33 @@ LABEL description="OSINT News Aggregator with LangChain ReAct Agents"
 LABEL version="1.0.0"
 
 # Install runtime dependencies only
+# - git: Required by bbot for some modules
+# - dns-utils: DNS lookups for OSINT tools  
+# - whois: Domain WHOIS lookups
+# - wget, unzip: For downloading binaries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2 \
     libxslt1.1 \
     curl \
+    wget \
+    unzip \
+    git \
+    dnsutils \
+    whois \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+# Install Go tools (Amass and PhoneInfoga) as pre-compiled binaries
+# Amass - OWASP attack surface mapping
+RUN curl -L -o /tmp/amass.zip https://github.com/owasp-amass/amass/releases/download/v4.2.0/amass_Linux_amd64.zip && \
+    unzip -j /tmp/amass.zip "amass_Linux_amd64/amass" -d /usr/local/bin/ && \
+    chmod +x /usr/local/bin/amass && \
+    rm /tmp/amass.zip
+
+# PhoneInfoga - Phone number OSINT
+RUN curl -sSL https://github.com/sundowndev/phoneinfoga/releases/download/v2.11.0/phoneinfoga_Linux_x86_64.tar.gz | \
+    tar -xz -C /usr/local/bin phoneinfoga && \
+    chmod +x /usr/local/bin/phoneinfoga
 
 # Create non-root user for security
 RUN groupadd -r osint && useradd -r -g osint osint

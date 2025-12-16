@@ -4,6 +4,7 @@
 
 Este documento describe el desarrollo de la **estructura base** del OSINT News Aggregator, una aplicación web para agregación de noticias OSINT con arquitectura basada en agentes.
 
+**Actualización v1.3:** Nuevas herramientas OSINT: Holehe, Amass, PhoneInfoga.
 **Actualización v1.2:** Migración completa a LangChain ReAct pattern para todos los agentes.
 **Actualización v1.1:** Integración con LangChain y Tavily para búsqueda web avanzada.
 
@@ -82,6 +83,18 @@ Todos los agentes OSINT ahora utilizan el patrón **ReAct (Reasoning + Acting)**
 
 # Construcción
 - google_dork_builder: Constructor de queries avanzadas
+
+# OSINT de Identidad
+- MaigretUsernameTool: Búsqueda de usernames en 500+ sitios
+- HoleheEmailTool: Verificación de emails en 100+ sitios
+- PhoneInfogaScanTool: OSINT de números telefónicos
+
+# OSINT de Dominios
+- BbotSubdomainTool: Enumeración de subdominios
+- BbotWebScanTool: Reconocimiento web
+- BbotEmailTool: Harvesting de emails
+- AmassEnumTool: OWASP Amass subdomain enum
+- AmassIntelTool: Descubrimiento de dominios de organizaciones
 ```
 
 ### Test de Funcionamiento

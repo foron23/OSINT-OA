@@ -62,6 +62,15 @@ maigret>=0.4.4
 # https://github.com/blacklanternsecurity/bbot
 bbot>=2.0.0
 
+# Holehe - Email registration checker
+# Checks if email is registered on various websites
+# https://github.com/megadose/holehe
+holehe>=1.61
+
+# =============================================================================
+# Note: Amass and PhoneInfoga are Go binaries, installed separately
+# - Amass: go install github.com/owasp-amass/amass/v4/...@master
+# - PhoneInfoga: https://github.com/sundowndev/phoneinfoga/releases
 # =============================================================================
 
 # Telegram integration

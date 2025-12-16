@@ -1,10 +1,25 @@
 # 🔍 OSINT Agentic Operations
 
+> ⚠️ **DISCLAIMER: USO ÉTICO Y RESPONSABLE**
+> 
+> Esta herramienta está diseñada **exclusivamente para fines educativos, de investigación y uso ético**. Al utilizar este software, usted acepta:
+>
+> - 🔒 **Respetar la privacidad**: No recopilar información personal sin consentimiento legal
+> - ⚖️ **Cumplir la ley**: Obedecer todas las leyes locales, nacionales e internacionales aplicables
+> - 🎯 **Uso legítimo**: Utilizar solo para auditorías autorizadas, investigaciones de seguridad propias, o investigación académica
+> - 🚫 **Prohibido**: Acoso, stalking, doxing, fraude, o cualquier actividad maliciosa
+> - 📝 **Responsabilidad**: Los desarrolladores no se hacen responsables del uso indebido de esta herramienta
+>
+> **El uso indebido de técnicas OSINT puede tener consecuencias legales graves.**
+
+---
+
 **Sistema de Operaciones OSINT Agéntico** - Una plataforma avanzada de inteligencia de código abierto basada en agentes LangChain/LangGraph que colaboran para realizar investigaciones exhaustivas.
 
-[![Tests](https://img.shields.io/badge/tests-108%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-139%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://python.org)
 [![LangChain](https://img.shields.io/badge/LangChain-ReAct-orange)](https://langchain.com)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ## 🎯 Descripción
 
@@ -18,24 +33,57 @@ OSINT Agentic Operations es un sistema donde **múltiples agentes especializados
 ## ✨ Características
 
 ### 🤖 Sistema de Agentes
-- **ControlAgent**: Orquestador que planifica y coordina investigaciones
-- **10 agentes especializados**: Búsqueda, scraping, análisis de amenazas, IOCs, OSINT de usernames
+- **ControlAgent**: Orquestador que planifica y coordina investigaciones multi-agente
+- **ConsolidatorAgent**: Publicación de reportes a canales Telegram
+- **10 agentes especializados OSINT**: Búsqueda, scraping, análisis de amenazas, IOCs, identidades, dominios
 - **Patrón ReAct**: Reasoning + Acting con LangGraph
 - **Evidencia estructurada**: Todos los agentes extraen IOCs, entidades y técnicas MITRE ATT&CK
 
-### 🔬 Capacidades de Investigación
+### 🔬 Agentes Disponibles
+
+#### 🎯 Agentes de Orquestación
+
 | Agente | Función | Herramientas |
 |--------|---------|--------------|
-| TavilySearchAgent | Búsqueda web AI-optimizada | Tavily API |
-| DuckDuckGoSearchAgent | Búsqueda privada | DuckDuckGo |
-| GoogleDorkingAgent | Búsqueda avanzada | Dork Builder |
-| WebScraperAgent | Extracción de contenido | BeautifulSoup |
-| ThreatIntelAgent | Inteligencia de amenazas | Multi-tool |
-| IOCAnalysisAgent | Análisis de IOCs | IOC Extractor |
-| HybridOsintAgent | Investigación completa | All tools |
-| MaigretAgent | OSINT de usernames | Maigret (500+ sites) |
-| BbotAgent | Reconocimiento de dominios | Bbot |
-| ReportGeneratorAgent | Generación de reportes | Templates |
+| **ControlAgent** | Orquesta investigaciones multi-agente, planifica estrategias y delega tareas | delegate_to_agent, list_agents, get_agent_info |
+| **ConsolidatorAgent** | Publica reportes formateados a canales Telegram | telegram_publish_report |
+
+#### 🔍 Agentes de Búsqueda
+
+| Agente | Función | Herramientas |
+|--------|---------|--------------|
+| **TavilySearchAgent** | Búsqueda web AI-optimizada para OSINT | Tavily API |
+| **DuckDuckGoSearchAgent** | Búsqueda privada sin tracking | DuckDuckGo |
+| **GoogleDorkingAgent** | Búsqueda avanzada con operadores Google | Dork Builder |
+
+#### 📊 Agentes de Análisis
+
+| Agente | Función | Herramientas |
+|--------|---------|--------------|
+| **WebScraperAgent** | Extracción profunda de contenido web | Web Scraper, BeautifulSoup |
+| **ThreatIntelAgent** | Análisis de inteligencia de amenazas | IOC Extractor, Tag Extractor |
+| **IOCAnalysisAgent** | Extracción y análisis de Indicadores de Compromiso | IOC Extractor |
+| **HybridOsintAgent** | Investigación completa multi-herramienta | Todas las herramientas |
+| **ReportGeneratorAgent** | Generación de reportes estructurados | Tag Extractor, Templates |
+
+#### 🕵️ Agentes de Identidad y Dominios
+
+| Agente | Función | Herramientas |
+|--------|---------|--------------|
+| **MaigretAgent** | OSINT de usernames en 500+ plataformas | maigret_username_search, maigret_report |
+| **BbotAgent** | Reconocimiento de dominios y superficie de ataque | bbot_subdomain_enum, bbot_web_recon, bbot_email_harvest |
+
+### 🛠️ Herramientas OSINT Integradas
+
+| Herramienta | Tipo | Descripción | API Key |
+|-------------|------|-------------|---------|
+| **Maigret** | Username | Búsqueda en 500+ plataformas | ❌ No |
+| **BBOT** | Dominios | Subdominios, web recon, emails | ❌ No |
+| **Holehe** | Email | Verificación en 100+ sitios | ❌ No |
+| **Amass** | Dominios | OWASP subdomain enumeration | ❌ No |
+| **PhoneInfoga** | Teléfono | OSINT de números telefónicos | ❌ No |
+| **DuckDuckGo** | Búsqueda | Búsqueda web privada | ❌ No |
+| **Tavily** | Búsqueda | Búsqueda AI-optimizada | ✅ Sí |
 
 ### 📊 Sistema de Evidencias
 - **IOCs Soportados**: IP, Domain, URL, Hash (MD5/SHA1/SHA256), Email, CVE, Crypto

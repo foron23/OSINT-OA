@@ -70,8 +70,9 @@ def _check_bbot_available() -> bool:
 
 async def _run_bbot_async(
     target: str,
+    preset: Optional[str] = None,
     modules: Optional[List[str]] = None,
-    flags: Optional[List[str]] = None,
+    require_flags: Optional[List[str]] = None,
     output_modules: Optional[List[str]] = None,
     timeout_minutes: int = 10
 ) -> dict:
@@ -80,8 +81,9 @@ async def _run_bbot_async(
     
     Args:
         target: Target domain or IP
-        modules: Specific modules to run
-        flags: Additional flags (e.g., passive-only)
+        preset: Preset to use (e.g., subdomain-enum, web-basic, spider)
+        modules: Additional specific modules to run (e.g., httpx, nuclei)
+        require_flags: Filter modules by required flags (e.g., passive)
         output_modules: Output modules (e.g., json)
         timeout_minutes: Maximum runtime in minutes
         
@@ -98,22 +100,30 @@ async def _run_bbot_async(
     # Create temporary directory for output
     with tempfile.TemporaryDirectory() as tmpdir:
         output_dir = Path(tmpdir) / "bbot_output"
+        scan_name = f"scan_{target.replace('.', '_')}"
         
         cmd = [
             'bbot',
             '-t', target,
             '-o', str(output_dir),
+            '-n', scan_name,
             '--silent',
             '-y',  # Yes to all prompts
         ]
         
+        # Use preset if specified (recommended approach)
+        if preset:
+            cmd.extend(['-p', preset])
+        
+        # Add specific modules if provided
         if modules:
             cmd.extend(['-m'] + modules)
         
-        if flags:
-            cmd.extend(['-f'] + flags)
+        # Filter by required flags (e.g., passive)
+        if require_flags:
+            cmd.extend(['-rf'] + require_flags)
         
-        # Always output JSON
+        # Always output JSON format
         cmd.extend(['-om', 'json'])
         
         try:
@@ -129,22 +139,31 @@ async def _run_bbot_async(
             )
             
             # Parse output from JSON file
-            json_output = output_dir / "output.json"
-            ndjson_output = output_dir / "output.ndjson"
+            # BBOT creates output in: output_dir/scan_name/output.json (NDJSON format)
+            scan_output_dir = output_dir / scan_name
+            json_output = scan_output_dir / "output.json"
+            ndjson_output = scan_output_dir / "output.ndjson"
             
             results = []
             
-            # Try to read NDJSON (newline-delimited JSON)
-            if ndjson_output.exists():
-                with open(ndjson_output, 'r') as f:
+            # Function to parse NDJSON content
+            def parse_ndjson(file_path):
+                parsed = []
+                with open(file_path, 'r') as f:
                     for line in f:
-                        try:
-                            results.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            continue
-            elif json_output.exists():
-                with open(json_output, 'r') as f:
-                    results = json.load(f)
+                        line = line.strip()
+                        if line:
+                            try:
+                                parsed.append(json.loads(line))
+                            except json.JSONDecodeError:
+                                continue
+                return parsed
+            
+            # BBOT output.json is actually NDJSON format (one JSON per line)
+            if json_output.exists():
+                results = parse_ndjson(json_output)
+            elif ndjson_output.exists():
+                results = parse_ndjson(ndjson_output)
             
             # Parse stdout for events if no file output
             if not results:
@@ -161,18 +180,30 @@ async def _run_bbot_async(
             return {
                 "success": True,
                 "target": target,
-                "modules": modules or "default",
+                "preset": preset or "default",
+                "modules": modules or [],
                 "events_found": len(results),
                 "results": results[:100],  # Limit results
                 "error": None
             }
             
         except asyncio.TimeoutError:
+            # Try to read partial results even on timeout
+            partial_results = []
+            try:
+                if json_output.exists():
+                    partial_results = parse_ndjson(json_output)
+                elif ndjson_output.exists():
+                    partial_results = parse_ndjson(ndjson_output)
+            except Exception:
+                pass
+            
             return {
-                "success": False,
+                "success": len(partial_results) > 0,
                 "target": target,
-                "error": f"bbot scan timed out after {timeout_minutes} minutes",
-                "results": []
+                "error": f"bbot scan timed out after {timeout_minutes} minutes (partial results may be available)",
+                "events_found": len(partial_results),
+                "results": partial_results[:100]
             }
         except Exception as e:
             return {
@@ -185,8 +216,9 @@ async def _run_bbot_async(
 
 def _run_bbot_sync(
     target: str,
+    preset: Optional[str] = None,
     modules: Optional[List[str]] = None,
-    flags: Optional[List[str]] = None,
+    require_flags: Optional[List[str]] = None,
     timeout_minutes: int = 10
 ) -> dict:
     """Synchronous wrapper for bbot."""
@@ -197,7 +229,7 @@ def _run_bbot_sync(
         asyncio.set_event_loop(loop)
     
     return loop.run_until_complete(
-        _run_bbot_async(target, modules, flags, timeout_minutes=timeout_minutes)
+        _run_bbot_async(target, preset=preset, modules=modules, require_flags=require_flags, timeout_minutes=timeout_minutes)
     )
 
 
@@ -209,18 +241,20 @@ class BbotSubdomainTool(BaseTool):
     """
     Enumerate subdomains of a target domain using bbot.
     
-    Uses multiple sources including:
-    - DNS bruteforce
-    - Certificate transparency logs
-    - Wayback Machine
-    - Public datasets
-    - Search engines
+    Uses the subdomain-enum preset with multiple sources:
+    - Certificate transparency logs (crt.sh, certspotter)
+    - DNS records and zone transfers
+    - Wayback Machine archives
+    - Public subdomain databases
+    - Search engine results
     """
     
     name: str = "bbot_subdomain_enum"
-    description: str = """Enumerate subdomains of a target domain.
-    Uses multiple passive and active sources to discover subdomains.
-    Returns: List of discovered subdomains with their status."""
+    description: str = """Enumerate subdomains of a target domain using passive OSINT sources.
+Uses bbot's subdomain-enum preset which queries certificate transparency logs, DNS records, web archives, and public databases.
+Input: domain (e.g., 'example.com'), passive_only (bool, default True)
+Returns: List of discovered subdomains with their status.
+Example usage: Search for subdomains of a company's main domain."""
     args_schema: Type[BaseModel] = BbotSubdomainInput
     
     def _run(
@@ -230,10 +264,11 @@ class BbotSubdomainTool(BaseTool):
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
         """Run subdomain enumeration synchronously."""
-        modules = ["subdomains"]
-        flags = ["passive"] if passive_only else None
+        # Use subdomain-enum preset which is the recommended way
+        preset = "subdomain-enum"
+        require_flags = ["passive"] if passive_only else None
         
-        result = _run_bbot_sync(domain, modules=modules, flags=flags, timeout_minutes=5)
+        result = _run_bbot_sync(domain, preset=preset, require_flags=require_flags, timeout_minutes=5)
         
         # Extract just subdomains from results
         if result["success"]:
@@ -257,10 +292,11 @@ class BbotSubdomainTool(BaseTool):
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
         """Run subdomain enumeration asynchronously."""
-        modules = ["subdomains"]
-        flags = ["passive"] if passive_only else None
+        # Use subdomain-enum preset which is the recommended way
+        preset = "subdomain-enum"
+        require_flags = ["passive"] if passive_only else None
         
-        result = await _run_bbot_async(domain, modules=modules, flags=flags, timeout_minutes=5)
+        result = await _run_bbot_async(domain, preset=preset, require_flags=require_flags, timeout_minutes=5)
         
         if result["success"]:
             subdomains = []
@@ -283,17 +319,19 @@ class BbotWebScanTool(BaseTool):
     """
     Perform web reconnaissance on a target domain using bbot.
     
-    Discovers:
-    - Web technologies
-    - Exposed endpoints
-    - API endpoints
-    - Sensitive files
+    Uses the web-basic preset to discover:
+    - Web technologies (frameworks, servers, CMS)
+    - robots.txt and security.txt files
+    - Exposed endpoints and paths
+    - HTTP headers and security configurations
     """
     
     name: str = "bbot_web_recon"
-    description: str = """Perform web reconnaissance on a target domain.
-    Discovers web technologies, exposed endpoints, and sensitive files.
-    Returns: Web reconnaissance findings including technologies and endpoints."""
+    description: str = """Perform web reconnaissance on a target domain or URL.
+Uses bbot's web-basic preset to analyze web technologies, security configurations, and exposed endpoints.
+Input: domain (e.g., 'www.example.com'), modules (optional list of additional modules)
+Returns: Web reconnaissance findings including technologies, URLs, and potential issues.
+Example usage: Analyze what technologies a website is using."""
     args_schema: Type[BaseModel] = BbotDomainInput
     
     def _run(
@@ -303,10 +341,11 @@ class BbotWebScanTool(BaseTool):
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
         """Run web recon synchronously."""
-        if modules is None:
-            modules = ["httpx", "wayback", "nuclei"]
+        # Use web-basic preset with optional additional modules
+        preset = "web-basic"
+        extra_modules = modules if modules else None
         
-        result = _run_bbot_sync(domain, modules=modules, timeout_minutes=10)
+        result = _run_bbot_sync(domain, preset=preset, modules=extra_modules, timeout_minutes=10)
         
         # Categorize findings
         if result["success"]:
@@ -339,10 +378,11 @@ class BbotWebScanTool(BaseTool):
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
         """Run web recon asynchronously."""
-        if modules is None:
-            modules = ["httpx", "wayback", "nuclei"]
+        # Use web-basic preset with optional additional modules
+        preset = "web-basic"
+        extra_modules = modules if modules else None
         
-        result = await _run_bbot_async(domain, modules=modules, timeout_minutes=10)
+        result = await _run_bbot_async(domain, preset=preset, modules=extra_modules, timeout_minutes=10)
         
         if result["success"]:
             technologies = []
@@ -376,17 +416,19 @@ class BbotEmailTool(BaseTool):
     """
     Harvest email addresses from a target domain using bbot.
     
-    Sources include:
+    Uses the email-enum preset with passive sources:
+    - emailformat.com patterns
+    - hunter.io database
+    - Public breach databases
     - Website scraping
-    - WHOIS records
-    - Certificate transparency
-    - Public databases
     """
     
     name: str = "bbot_email_harvest"
-    description: str = """Harvest email addresses associated with a domain.
-    Uses multiple passive sources to discover organizational emails.
-    Returns: List of discovered email addresses."""
+    description: str = """Harvest email addresses associated with a domain using passive OSINT sources.
+Uses bbot's email-enum preset to discover organizational email patterns and addresses.
+Input: domain (e.g., 'example.com')
+Returns: List of discovered email addresses and common patterns.
+Example usage: Find employee emails for a target organization."""
     args_schema: Type[BaseModel] = BbotEmailInput
     
     def _run(
@@ -395,10 +437,11 @@ class BbotEmailTool(BaseTool):
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
         """Run email harvesting synchronously."""
-        modules = ["emailformat", "skymem", "hunter"]
-        flags = ["passive", "emails"]
+        # Use email-enum preset with passive flag requirement
+        preset = "email-enum"
+        require_flags = ["passive"]
         
-        result = _run_bbot_sync(domain, modules=modules, flags=flags, timeout_minutes=5)
+        result = _run_bbot_sync(domain, preset=preset, require_flags=require_flags, timeout_minutes=5)
         
         # Extract emails
         if result["success"]:
@@ -421,10 +464,11 @@ class BbotEmailTool(BaseTool):
         run_manager: Optional[CallbackManagerForToolRun] = None
     ) -> str:
         """Run email harvesting asynchronously."""
-        modules = ["emailformat", "skymem", "hunter"]
-        flags = ["passive", "emails"]
+        # Use email-enum preset with passive flag requirement
+        preset = "email-enum"
+        require_flags = ["passive"]
         
-        result = await _run_bbot_async(domain, modules=modules, flags=flags, timeout_minutes=5)
+        result = await _run_bbot_async(domain, preset=preset, require_flags=require_flags, timeout_minutes=5)
         
         if result["success"]:
             emails = []

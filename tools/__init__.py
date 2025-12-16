@@ -10,6 +10,9 @@ This module provides all tools that agents can use:
 - Analysis tools (IOC extraction, tagging)
 - Maigret tools (Username enumeration)
 - bbot tools (Attack surface enumeration)
+- Holehe tools (Email registration check)
+- Amass tools (Subdomain enumeration)
+- PhoneInfoga tools (Phone number OSINT)
 - Telegram tools (MCP-based messaging)
 
 Usage:
@@ -45,6 +48,18 @@ from tools.bbot import (
     BbotEmailTool,
 )
 
+# New OSINT tools
+from tools.holehe import (
+    HoleheEmailTool,
+)
+from tools.amass import (
+    AmassEnumTool,
+    AmassIntelTool,
+)
+from tools.phoneinfoga import (
+    PhoneInfogaScanTool,
+)
+
 from tools.telegram import (
     TelegramMCPSendTool,
     TelegramMCPPublishReportTool,
@@ -64,6 +79,9 @@ def get_all_tools():
         TagExtractorTool(),
         MaigretUsernameTool(),
         BbotSubdomainTool(),
+        HoleheEmailTool(),
+        AmassEnumTool(),
+        PhoneInfogaScanTool(),
         TelegramMCPSendTool(),
     ]
 
@@ -103,9 +121,36 @@ def get_bbot_tools():
     ]
 
 
+def get_holehe_tools():
+    """Get Holehe email OSINT tools."""
+    return [
+        HoleheEmailTool(),
+    ]
+
+
+def get_amass_tools():
+    """Get Amass subdomain enumeration tools."""
+    return [
+        AmassEnumTool(),
+        AmassIntelTool(),
+    ]
+
+
+def get_phoneinfoga_tools():
+    """Get PhoneInfoga phone number OSINT tools."""
+    return [
+        PhoneInfogaScanTool(),
+    ]
+
+
 def get_identity_tools():
-    """Get all identity/OSINT tools (Maigret + bbot)."""
-    return get_maigret_tools() + get_bbot_tools()
+    """Get all identity/OSINT tools (Maigret + bbot + Holehe + PhoneInfoga)."""
+    return get_maigret_tools() + get_bbot_tools() + get_holehe_tools() + get_phoneinfoga_tools()
+
+
+def get_domain_tools():
+    """Get all domain reconnaissance tools (bbot + Amass)."""
+    return get_bbot_tools() + get_amass_tools()
 
 
 def get_telegram_mcp_tools():
@@ -139,6 +184,13 @@ __all__ = [
     'BbotSubdomainTool',
     'BbotWebScanTool',
     'BbotEmailTool',
+    # Holehe (email OSINT)
+    'HoleheEmailTool',
+    # Amass (subdomain enumeration)
+    'AmassEnumTool',
+    'AmassIntelTool',
+    # PhoneInfoga (phone OSINT)
+    'PhoneInfogaScanTool',
     # Telegram
     'TelegramMCPSendTool',
     'TelegramMCPPublishReportTool',
@@ -150,6 +202,10 @@ __all__ = [
     'get_analysis_tools',
     'get_maigret_tools',
     'get_bbot_tools',
+    'get_holehe_tools',
+    'get_amass_tools',
+    'get_phoneinfoga_tools',
     'get_identity_tools',
+    'get_domain_tools',
     'get_telegram_mcp_tools',
 ]
