@@ -181,6 +181,7 @@ def register_all_agents() -> None:
         # Modern OSINT agents (replacing OSRFramework)
         from agents.osint.maigret import MaigretAgent
         from agents.osint.bbot import BbotAgent
+        from agents.osint.amass import AmassAgent
         
         # Email and Phone OSINT agents
         from agents.osint.holehe import HoleheAgent
@@ -198,6 +199,7 @@ def register_all_agents() -> None:
             ReportGeneratorAgent,
             MaigretAgent,
             BbotAgent,
+            AmassAgent,
             HoleheAgent,
             PhoneInfogaAgent,
         ]:

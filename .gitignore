@@ -55,6 +55,8 @@ venv.bak/
 # env / secret files
 .env
 *.env
+.env.*
+!.env.example
 .secrets
 secrets.json
 credentials.yml.enc
@@ -84,7 +86,10 @@ db/*.sqlite
 # Telegram session files (sensitive)
 data/telegram-session/
 app/data/telegram-session/
+.telegram-session/
+telegram-session/
 *.session
+*.session-journal
 session.json
 
 # Docker related
