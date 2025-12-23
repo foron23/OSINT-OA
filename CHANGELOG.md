@@ -5,6 +5,57 @@ All notable changes to OSINT Agentic Operations will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2025-12-23
+
+### 🏹 Attack Surface Mapping & Infrastructure Intelligence
+
+New AmassAgent integration for comprehensive attack surface mapping and subdomain enumeration.
+
+### Added
+
+#### AmassAgent Integration
+- **OWASP Amass integration** for attack surface mapping
+  - `AmassAgent` class with subdomain enumeration and organization domain discovery
+  - `amass_subdomain_enum` tool for comprehensive subdomain discovery
+  - `amass_intel_discovery` tool for organization-based domain enumeration
+  - Support for domain, subdomain, attack_surface, infrastructure, reconnaissance, asset_discovery, and organization queries
+
+#### Frontend Integration
+- **AmassAgent selection** in both investigation forms
+  - Added to "Infrastructure" category in new investigation form
+  - Added to "Identity & Infra" category in continue investigation modal
+  - Proper labeling: "Amass (Attack Surface)" and "Amass"
+
+#### Testing & Validation
+- **Comprehensive test suite** for AmassAgent (`tests/test_amass.py`)
+  - 28 test cases covering imports, instantiation, capabilities, and error handling
+  - Tool functionality tests for AmassEnumTool and AmassIntelTool
+  - Agent registry integration tests
+  - Mock-based testing for external tool dependencies
+
+### Technical Details
+
+#### New Agent Implementation (agents/osint/amass.py)
+```python
+class AmassAgent(BaseOSINTAgent):
+    def _define_capabilities(self) -> Dict[str, Any]:
+        return {
+            "name": "AmassAgent",
+            "description": "Attack surface mapping and subdomain enumeration using OWASP Amass",
+            "supported_queries": [
+                "domain", "subdomain", "attack_surface", "infrastructure",
+                "reconnaissance", "asset_discovery", "organization"
+            ],
+            "max_results": 100,
+            "rate_limit_per_minute": 60,
+            "requires_api_key": False
+        }
+```
+
+#### New Tools (tools/amass.py)
+- `AmassEnumTool` - Subdomain enumeration via `amass enum`
+- `AmassIntelTool` - Organization domain discovery via `amass intel`
+
 ## [1.4.0] - 2025-12-22
 
 ### 🛡️ Investigation Robustness & Advanced Features
@@ -383,7 +434,6 @@ Complete rebranding and enhancement from "OSINT News Aggregator" to "OSINT Agent
 ### Changed
 
 #### Architecture Rebranding
-- Renamed from "OSINT News Aggregator" to "OSINT Agentic Operations"
 - Updated all module headers and documentation
 - Shifted focus from news aggregation to comprehensive OSINT investigations
 
