@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Python Dependencies
+# OSINT OA - Python Dependencies
 # =============================================================================
 
 # Web Framework
@@ -44,9 +44,21 @@ python-dotenv>=1.0.0
 
 # Async support
 aiohttp>=3.9.0
+nest_asyncio>=1.5.0  # Fix event loop issues in threaded contexts
 
-# MCP (Model Context Protocol)
+# MCP (Model Context Protocol) - Legacy support
 mcp>=1.0.0
+
+# =============================================================================
+# Telegram Integration - Direct Telethon
+# =============================================================================
+# Telethon - Pure Python Telegram client for direct API access
+# More robust than MCP-based approach, native async support
+# https://github.com/LonamiWebs/Telethon
+telethon>=1.36.0
+
+# python-telegram-bot - Fallback/alternative
+python-telegram-bot>=20.0
 
 # =============================================================================
 # OSINT Tools - Modern replacements for OSRFramework
@@ -72,9 +84,6 @@ holehe>=1.61
 # - Amass: go install github.com/owasp-amass/amass/v4/...@master
 # - PhoneInfoga: https://github.com/sundowndev/phoneinfoga/releases
 # =============================================================================
-
-# Telegram integration
-python-telegram-bot>=20.0
 
 # Utilities
 python-dateutil>=2.8.0

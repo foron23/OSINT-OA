@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Tools Module
+# OSINT OA - Tools Module
 # =============================================================================
 """
 LangChain Tools for OSINT operations.

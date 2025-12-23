@@ -1,13 +1,13 @@
-# OSINT News Aggregator
+# OSINT OA
 
 ## Project Overview
 
-A comprehensive **Open Source Intelligence (OSINT) News Aggregator** with an **agent-based architecture** using **LangChain** and the **ReAct pattern**. The application collects, analyzes, and distributes cybersecurity intelligence through multiple specialized agents.
+A comprehensive **Open Source Intelligence (OSINT)** platform with an **agent-based architecture** using **LangChain** and the **ReAct pattern**. The application collects, analyzes, and distributes cybersecurity intelligence through multiple specialized agents.
 
 ## Architecture
 
 ```
-osint_aggregator/
+osint_oa/
 ├── agents/                     # Agent implementations
 │   ├── __init__.py            # Package exports
 │   ├── base.py                # LangChainAgent base class, AgentCapabilities
@@ -290,7 +290,7 @@ class Settings:
     # LangSmith (optional)
     LANGSMITH_TRACING: bool = False
     LANGSMITH_API_KEY: str = ""
-    LANGSMITH_PROJECT: str = "osint-aggregator"
+    LANGSMITH_PROJECT: str = "osint-oa"
 ```
 
 ---
@@ -312,7 +312,7 @@ TELEGRAM_TARGET_DIALOG=cht[1234567890]
 # Optional: LangSmith tracing
 LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=ls-...
-LANGSMITH_PROJECT=osint-aggregator
+LANGSMITH_PROJECT=osint-oa
 
 # Flask (optional)
 FLASK_DEBUG=false

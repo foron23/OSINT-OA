@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Dockerfile
+# OSINT OA - Dockerfile
 # =============================================================================
 # Multi-stage build for optimized production image
 #
@@ -46,8 +46,8 @@ RUN uv pip install --no-cache -r requirements.txt
 FROM python:3.12-slim AS runtime
 
 # Labels
-LABEL maintainer="OSINT News Aggregator"
-LABEL description="OSINT News Aggregator with LangChain ReAct Agents"
+LABEL maintainer="OSINT OA"
+LABEL description="OSINT OA with LangChain ReAct Agents"
 LABEL version="1.0.0"
 
 # Install runtime dependencies only
@@ -55,6 +55,7 @@ LABEL version="1.0.0"
 # - dns-utils: DNS lookups for OSINT tools  
 # - whois: Domain WHOIS lookups
 # - wget, unzip: For downloading binaries
+# - supervisor: Process manager for Flask + Telegram Listener
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2 \
     libxslt1.1 \
@@ -64,8 +65,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     dnsutils \
     whois \
+    supervisor \
     && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && apt-get clean \
+    && mkdir -p /etc/supervisor/conf.d
 
 # Install Go tools (Amass and PhoneInfoga) as pre-compiled binaries
 # Amass - OWASP attack surface mapping
@@ -103,19 +106,18 @@ COPY --chown=osint:osint osint_mcp/ ./osint_mcp/
 COPY --chown=osint:osint scripts/ ./scripts/
 COPY --chown=osint:osint tests/ ./tests/
 
-# Copy Telegram MCP binary (Go binary, pre-compiled for x86-64 Linux)
-COPY --chown=osint:osint bin/telegram-mcp /app/bin/telegram-mcp
-RUN chmod +x /app/bin/telegram-mcp
+# Create data directories for SQLite and Telegram session
+RUN mkdir -p /app/data /app/data/telegram-session /app/logs && chown -R osint:osint /app/data /app/logs
 
-# Create data directory for SQLite and Telegram session
-RUN mkdir -p /app/data && chown -R osint:osint /app/data
+# Copy supervisord configuration
+COPY --chown=osint:osint docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV FLASK_APP=app.py
 ENV DATABASE_PATH=/app/data/osint.db
-ENV TELEGRAM_MCP_PATH=/app/bin/telegram-mcp
+ENV TELEGRAM_SESSION_PATH=/app/data/telegram-session
 
 # Expose Flask port
 EXPOSE 5000
@@ -124,8 +126,9 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/api/runs || exit 1
 
-# Switch to non-root user
-USER osint
+# Switch to root for supervisord (it will drop to osint for processes)
+USER root
 
-# Default command - run Flask with gunicorn for production
-CMD ["python", "app.py"]
+# Default command - use supervisord to manage Flask + Telegram Listener
+# For Flask only, use: docker run ... python app.py
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

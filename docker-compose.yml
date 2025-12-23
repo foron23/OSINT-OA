@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Docker Compose
+# OSINT OA - Docker Compose
 # =============================================================================
 # Orquestación de servicios para despliegue completo
 #
@@ -10,18 +10,18 @@
 #
 # Volúmenes persistentes:
 #   - osint-data: Base de datos SQLite
-#   - telegram-session: Sesión de Telegram MCP (autenticación)
+#   - telegram-session: Sesión de Telegram (autenticación)
 # =============================================================================
 
 services:
   # ---------------------------------------------------------------------------
-  # OSINT News Aggregator - Main Application
+  # OSINT OA - Main Application
   # ---------------------------------------------------------------------------
-  osint-aggregator:
+  osint-oa:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: osint-news-aggregator
+    container_name: osint-oa
     restart: unless-stopped
     
     # Port mapping
@@ -36,17 +36,16 @@ services:
     environment:
       - FLASK_DEBUG=${FLASK_DEBUG:-0}
       - DATABASE_PATH=/app/data/osint.db
-      - TELEGRAM_MCP_PATH=/app/bin/telegram-mcp
       - TELEGRAM_SESSION_PATH=/app/data/telegram-session
     
     # Persistent volumes
     volumes:
       # SQLite database persistence
       - osint-data:/app/data
-      # Telegram session persistence (important for MCP auth)
+      # Telegram session persistence (Telethon session)
       # Bind mount desde el host - permite pre-cargar sesión existente
       # IMPORTANTE: La ruta debe ser absoluta o relativa al docker-compose.yml
-      - ${TELEGRAM_SESSION_HOST_PATH:-./telegram-session}:/app/data/telegram-session
+      - ${TELEGRAM_SESSION_HOST_PATH:-./.telegram-session}:/app/data/telegram-session
       # Optional: mount .env for runtime changes (read-only)
       # - ./.env:/app/.env:ro
     
@@ -82,7 +81,7 @@ volumes:
   # SQLite database - survives container restarts/updates
   osint-data:
     driver: local
-    name: osint-news-data
+    name: osint-oa-data
 
 # -----------------------------------------------------------------------------
 # Networks (optional, for multi-service setups)

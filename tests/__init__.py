@@ -1,8 +1,8 @@
 # =============================================================================
-# OSINT News Aggregator - Test Suite
+# OSINT OA - Test Suite
 # =============================================================================
 """
-Test suite for the OSINT News Aggregator.
+Test suite for OSINT OA.
 
 Test Categories:
 - test_smoke.py: Import and loading tests (CICD smoke tests)

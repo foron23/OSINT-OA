@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# OSINT News Aggregator - Telegram MCP Setup Script
+# OSINT OA - Telegram MCP Setup Script
 # =============================================================================
 # Este script inicializa la sesión de Telegram MCP de forma interactiva.
 # Debe ejecutarse UNA VEZ antes de desplegar en producción.
@@ -17,13 +17,13 @@
 set -e
 
 CONTAINER_NAME="osint-telegram-setup"
-IMAGE_NAME="osint-aggregator:latest"
+IMAGE_NAME="osint-oa:latest"
 # Directorio de sesión en el host (relativo al script)
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SESSION_DIR="${TELEGRAM_SESSION_HOST_PATH:-$SCRIPT_DIR/telegram-session}"
 
 echo "=============================================="
-echo "OSINT News Aggregator - Telegram MCP Setup"
+echo "OSINT OA - Telegram MCP Setup"
 echo "=============================================="
 echo ""
 echo "Session directory: $SESSION_DIR"

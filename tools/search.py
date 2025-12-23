@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Search Tools
+# OSINT OA - Search Tools
 # =============================================================================
 """
 Web search tools for OSINT operations.

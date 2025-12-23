@@ -1,5 +1,5 @@
 /* =============================================================================
-   OSINT Aggregator - Hacker Theme Styles with Matrix Effects
+   OSINT OA - Hacker Theme Styles with Matrix Effects
    ============================================================================= */
 
 /* Reset & Base */
@@ -1593,3 +1593,233 @@ body::after {
         transition-duration: 0.01ms !important;
     }
 }
+
+/* =============================================================================
+   Agent Selection Styles
+   ============================================================================= */
+
+.agent-selection {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+
+.agent-mode-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    color: var(--terminal-green);
+    font-size: 0.95rem;
+}
+
+.agent-mode-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--terminal-green);
+}
+
+.agent-checkboxes {
+    margin-top: 15px;
+    padding: 15px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+}
+
+.agent-hint {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 15px;
+}
+
+.agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+.agent-category {
+    padding: 10px;
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--border-color);
+}
+
+.agent-category h4 {
+    color: var(--terminal-green);
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.agent-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-color);
+    transition: color 0.2s;
+}
+
+.agent-checkbox:hover {
+    color: var(--text-bright);
+}
+
+.agent-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--terminal-green);
+}
+
+.agent-checkbox input[type="checkbox"]:checked + span {
+    color: var(--terminal-green);
+}
+
+.agent-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 0.8rem;
+}
+
+/* =============================================================================
+   Investigation Status Badges
+   ============================================================================= */
+
+.status-badge.partial {
+    background: linear-gradient(135deg, var(--warning-color), #cc9900);
+    color: var(--bg-color);
+}
+
+.status-badge.failed {
+    background: linear-gradient(135deg, var(--danger-color), #cc0000);
+    color: var(--text-bright);
+}
+
+/* =============================================================================
+   Continue Investigation Modal & UI
+   ============================================================================= */
+
+.continue-btn {
+    background: linear-gradient(135deg, var(--success-color), #00cc33);
+    color: var(--bg-color);
+    border: none;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.continue-btn:hover {
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+    transform: translateY(-1px);
+}
+
+.continue-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.continue-modal-content {
+    background: var(--card-bg);
+    border: 1px solid var(--terminal-green);
+    border-radius: var(--radius);
+    padding: 25px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 0 30px rgba(0, 255, 65, 0.2);
+}
+
+.continue-modal h3 {
+    color: var(--terminal-green);
+    margin-bottom: 20px;
+}
+
+.continue-form .form-group {
+    margin-bottom: 15px;
+}
+
+.continue-form label {
+    display: block;
+    color: var(--text-color);
+    margin-bottom: 5px;
+    font-size: 0.9rem;
+}
+
+.continue-form textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    color: var(--text-color);
+    font-family: inherit;
+    resize: vertical;
+}
+
+.continue-form textarea:focus {
+    outline: none;
+    border-color: var(--terminal-green);
+}
+
+.continue-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+/* Evidence selection in continue modal */
+.evidence-select {
+    max-height: 150px;
+    overflow-y: auto;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 10px;
+}
+
+.evidence-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px;
+    font-size: 0.85rem;
+    color: var(--text-color);
+}
+
+.evidence-item input[type="checkbox"] {
+    accent-color: var(--terminal-green);
+}
+
+.evidence-item .ioc-type {
+    color: var(--warning-color);
+    font-weight: 600;
+    min-width: 60px;
+}
+
+.evidence-item .ioc-value {
+    color: var(--terminal-green);
+    font-family: monospace;
+}
+

@@ -1,18 +1,43 @@
 # =============================================================================
-# Telegram Integration Package
+# Telegram Integration Package (Telethon-based)
 # =============================================================================
 """
-Telegram integration for OSINT News Aggregator.
+Telegram integration for OSINT OA.
+
+Uses Telethon for direct, robust Telegram integration.
 
 Modules:
-- mcp_client: Telegram MCP client for sending messages
-- listener: Polling service for incoming messages
+- telethon_client: Direct Telegram client using Telethon
+- telethon_listener: Real-time message listener with Telethon
+- listener: Re-exports TelethonListener as TelegramListener
 """
 
-from integrations.telegram.mcp_client import TelegramMCPClient
-from integrations.telegram.listener import TelegramListener
+from integrations.telegram.telethon_client import (
+    TelethonClient,
+    TelethonReportPublisher,
+    TelegramFormatter,
+    TelethonConfig,
+    get_telegram_client,
+    get_telegram_publisher,
+    TELETHON_AVAILABLE,
+)
+from integrations.telegram.telethon_listener import TelethonListener
+
+# Alias for backward compatibility
+TelegramListener = TelethonListener
+TelegramClient = TelethonClient
+ReportPublisher = TelethonReportPublisher
 
 __all__ = [
-    "TelegramMCPClient",
+    "TelethonClient",
+    "TelethonReportPublisher",
+    "TelethonListener",
     "TelegramListener",
+    "TelegramFormatter",
+    "TelethonConfig",
+    "get_telegram_client",
+    "get_telegram_publisher",
+    "TelegramClient",
+    "ReportPublisher",
+    "TELETHON_AVAILABLE",
 ]

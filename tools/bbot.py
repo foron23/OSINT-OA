@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - bbot Tools
+# OSINT OA - bbot Tools
 # =============================================================================
 """
 bbot integration tools for attack surface enumeration.

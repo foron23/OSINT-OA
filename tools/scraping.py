@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Web Scraping Tools
+# OSINT OA - Web Scraping Tools
 # =============================================================================
 """
 Web content scraping and extraction tools.

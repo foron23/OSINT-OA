@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Maigret Tools
+# OSINT OA - Maigret Tools
 # =============================================================================
 """
 Maigret integration tools for OSINT username enumeration.

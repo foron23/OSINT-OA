@@ -182,8 +182,8 @@ class TestIntegrationsLoading:
     
     def test_telegram_integration_import(self):
         """Test Telegram integration import."""
-        from integrations.telegram import TelegramMCPClient, TelegramListener
-        assert TelegramMCPClient is not None
+        from integrations.telegram import TelethonClient, TelegramListener
+        assert TelethonClient is not None
         assert TelegramListener is not None
 
 

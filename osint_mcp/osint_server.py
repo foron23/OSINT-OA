@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - MCP Server (LangChain Integrated)
+# OSINT OA - MCP Server (LangChain Integrated)
 # =============================================================================
 """
 Model Context Protocol (MCP) server exposing OSINT tools.
@@ -462,7 +462,7 @@ def run_server():
         from mcp.server.stdio import stdio_server
         from mcp import types
         
-        server = Server("osint-aggregator-langchain")
+        server = Server("osint-oa-langchain")
         
         @server.list_tools()
         async def list_tools() -> list[types.Tool]:

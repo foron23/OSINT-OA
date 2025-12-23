@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Production Dockerfile (Multi-Service)
+# OSINT OA - Production Dockerfile (Multi-Service)
 # =============================================================================
 # Imagen optimizada para producción que incluye:
 # - Aplicación Flask con Gunicorn (WSGI server)
@@ -50,8 +50,8 @@
 # └─────────────────────────────────────────────────────────────────────────┘
 #
 # Uso:
-#   docker build -f Dockerfile.prod -t osint-aggregator:prod .
-#   docker run -p 5000:5000 --env-file .env osint-aggregator:prod
+#   docker build -f Dockerfile.prod -t osint-oa:prod .
+#   docker run -p 5000:5000 --env-file .env osint-oa:prod
 #
 # Con docker-compose:
 #   docker-compose -f docker-compose.prod.yml up -d
@@ -102,10 +102,10 @@ RUN uv pip install --no-cache -r requirements.txt && \
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS production
 
-LABEL maintainer="OSINT News Aggregator Team"
-LABEL description="Production-ready OSINT News Aggregator with MCP Servers"
+LABEL maintainer="OSINT OA Team"
+LABEL description="Production-ready OSINT OA with MCP Servers"
 LABEL version="2.0.0"
-LABEL org.opencontainers.image.source="https://github.com/your-org/osint-news-aggregator"
+LABEL org.opencontainers.image.source="https://github.com/your-org/osint-oa"
 
 # Runtime dependencies (sin herramientas de compilación)
 # - libxml2, libxslt1.1: Runtime para lxml
@@ -185,18 +185,6 @@ COPY --chown=osint:osint app.py .
 COPY --chown=osint:osint pytest.ini .
 
 # -----------------------------------------------------------------------------
-# Telegram MCP Binary
-# -----------------------------------------------------------------------------
-# Binario Go pre-compilado para Linux x86-64 (AMD64)
-# - Implementa Model Context Protocol (MCP) para Telegram
-# - Comunicación via stdio (stdin/stdout JSON-RPC)
-# - Requiere TG_APP_ID y TG_API_HASH en runtime
-COPY --chown=osint:osint bin/telegram-mcp /app/bin/telegram-mcp
-RUN chmod +x /app/bin/telegram-mcp && \
-    # Verificar que el binario es ejecutable
-    /app/bin/telegram-mcp --help 2>/dev/null || true
-
-# -----------------------------------------------------------------------------
 # Directorios de datos persistentes
 # -----------------------------------------------------------------------------
 # Estos directorios deben montarse como volúmenes para persistencia:
@@ -228,21 +216,15 @@ ENV PYTHONUNBUFFERED=1 \
     FLASK_DEBUG=0 \
     # Paths internos del contenedor (no cambiar)
     DATABASE_PATH=/app/data/osint.db \
-    TELEGRAM_MCP_PATH=/app/bin/telegram-mcp \
     TELEGRAM_SESSION_PATH=/app/data/telegram-session \
     # Gunicorn configuration (ajustar según recursos del servidor)
     GUNICORN_WORKERS=4 \
     GUNICORN_THREADS=2 \
     GUNICORN_TIMEOUT=120 \
-    GUNICORN_KEEPALIVE=5 \
-    # Telegram MCP Service (modo multi-servicio)
-    TELEGRAM_MCP_USE_SERVICE=true \
-    TELEGRAM_MCP_SERVICE_URL=http://localhost:5001 \
-    TELEGRAM_MCP_SERVICE_HOST=0.0.0.0 \
-    TELEGRAM_MCP_SERVICE_PORT=5001
+    GUNICORN_KEEPALIVE=5
 
-# Puertos: Flask API (5000) y Telegram MCP Service (5001)
-EXPOSE 5000 5001
+# Puerto Flask API (5000)
+EXPOSE 5000
 
 # -----------------------------------------------------------------------------
 # Health Check

@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT Aggregator - Production Docker Compose
+# OSINT OA - Production Docker Compose
 # =============================================================================
 # Configuración completa para despliegue en producción
 #
@@ -15,7 +15,7 @@
 # │ PASOS DE DESPLIEGUE:                                                    │
 # │                                                                          │
 # │ 1. Copiar archivos al servidor:                                         │
-# │    scp -r . usuario@servidor:/opt/osint-aggregator                      │
+# │    scp -r . usuario@servidor:/opt/osint-oa                              │
 # │                                                                          │
 # │ 2. Configurar variables de entorno:                                     │
 # │    cp .env.example .env                                                 │
@@ -30,7 +30,7 @@
 # │    docker-compose -f docker-compose.prod.yml logs -f                    │
 # │                                                                          │
 # │ 5. Configurar Telegram (primera vez):                                   │
-# │    docker-compose -f docker-compose.prod.yml exec osint-aggregator \    │
+# │    docker-compose -f docker-compose.prod.yml exec osint-oa \            │
 # │      python scripts/setup-telegram.py                                    │
 # │                                                                          │
 # │ ACTUALIZACIONES:                                                        │
@@ -38,7 +38,7 @@
 # │    docker-compose -f docker-compose.prod.yml up -d --build              │
 # │                                                                          │
 # │ BACKUP:                                                                  │
-# │    docker run --rm -v osint-news-data-prod:/data -v $(pwd):/backup \   │
+# │    docker run --rm -v osint-oa-data-prod:/data -v $(pwd):/backup \      │
 # │      alpine tar czf /backup/osint-backup-$(date +%Y%m%d).tar.gz /data   │
 # │                                                                          │
 # └─────────────────────────────────────────────────────────────────────────┘
@@ -46,19 +46,19 @@
 
 services:
   # ===========================================================================
-  # OSINT News Aggregator - Main Application
+  # OSINT OA - Main Application
   # ===========================================================================
-  osint-aggregator:
+  osint-oa:
     build:
       context: .
       dockerfile: Dockerfile.prod
       # Cache de layers para builds más rápidos
       cache_from:
-        - osint-aggregator:latest
+        - osint-oa:latest
     
-    image: osint-aggregator:prod
-    container_name: osint-news-aggregator-prod
-    hostname: osint-aggregator
+    image: osint-oa:prod
+    container_name: osint-oa-prod
+    hostname: osint-oa
     
     # Política de reinicio para producción
     restart: always
@@ -69,8 +69,6 @@ services:
     ports:
       # Puerto configurable via .env, default 5000
       - "${HOST_PORT:-5000}:5000"
-      # Puerto interno del servicio Telegram MCP (solo si se necesita acceso externo)
-      # - "${TELEGRAM_MCP_PORT:-5001}:5001"
     
     # ==========================================================================
     # Variables de Entorno
@@ -87,21 +85,12 @@ services:
       
       # Paths dentro del contenedor (no modificar)
       - DATABASE_PATH=/app/data/osint.db
-      - TELEGRAM_MCP_PATH=/app/bin/telegram-mcp
       - TELEGRAM_SESSION_PATH=/app/data/telegram-session
       
       # Gunicorn (ajustar según recursos del servidor)
       - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
       - GUNICORN_THREADS=${GUNICORN_THREADS:-2}
       - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
-      
-      # Telegram MCP Service (modo multi-servicio)
-      # true = usar servicio HTTP persistente (recomendado)
-      # false = ejecutar binario on-demand (más lento)
-      - TELEGRAM_MCP_USE_SERVICE=${TELEGRAM_MCP_USE_SERVICE:-true}
-      - TELEGRAM_MCP_SERVICE_URL=http://localhost:5001
-      - TELEGRAM_MCP_SERVICE_HOST=0.0.0.0
-      - TELEGRAM_MCP_SERVICE_PORT=5001
     
     # ==========================================================================
     # Volúmenes Persistentes
@@ -111,17 +100,17 @@ services:
       # IMPORTANTE: Este volumen contiene todos los datos de la aplicación
       - osint-data:/app/data
       
-      # Sesión de Telegram (autenticación persistente)
+      # Sesión de Telegram (autenticación persistente con Telethon)
       # Bind mount desde el directorio del host para permitir pre-cargar sesión existente
       # 
       # Configurar en .env:
-      #   TELEGRAM_SESSION_HOST_PATH=/ruta/absoluta/a/telegram-session
+      #   TELEGRAM_SESSION_HOST_PATH=/ruta/absoluta/a/.telegram-session
       # 
       # O usar ruta relativa (relativa al docker-compose.yml):
-      #   TELEGRAM_SESSION_HOST_PATH=./telegram-session
+      #   TELEGRAM_SESSION_HOST_PATH=./.telegram-session
       #
       # IMPORTANTE: El directorio debe existir antes de levantar el contenedor
-      - ${TELEGRAM_SESSION_HOST_PATH:-./telegram-session}:/app/data/telegram-session
+      - ${TELEGRAM_SESSION_HOST_PATH:-./.telegram-session}:/app/data/telegram-session
       
       # Logs de la aplicación (opcional, para debugging)
       - osint-logs:/app/logs
@@ -129,9 +118,9 @@ services:
     # ==========================================================================
     # Health Check
     # ==========================================================================
-    # Verifica Flask API (obligatorio) y Telegram MCP Service (opcional)
+    # Verifica Flask API
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/runs && (curl -f http://localhost:5001/health || true)"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/runs"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -184,7 +173,7 @@ services:
     
     # Labels para identificación
     labels:
-      - "com.osint.service=aggregator"
+      - "com.osint.service=osint-oa"
       - "com.osint.environment=production"
       - "com.osint.version=2.0.0"
     
@@ -200,7 +189,7 @@ volumes:
   # Base de datos SQLite y archivos generados
   osint-data:
     driver: local
-    name: osint-news-data-prod
+    name: osint-oa-data-prod
     labels:
       - "com.osint.volume=data"
       - "com.osint.backup=required"
@@ -208,7 +197,7 @@ volumes:
   # Logs de la aplicación
   osint-logs:
     driver: local
-    name: osint-logs-prod
+    name: osint-oa-logs-prod
     labels:
       - "com.osint.volume=logs"
       - "com.osint.backup=optional"
@@ -218,7 +207,7 @@ volumes:
 # =============================================================================
 networks:
   osint-network:
-    name: osint-network-prod
+    name: osint-oa-network-prod
     driver: bridge
     # Configuración de red personalizada (opcional)
     ipam:

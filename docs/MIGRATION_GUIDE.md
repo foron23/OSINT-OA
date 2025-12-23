@@ -1,4 +1,4 @@
-# Guía de Migración - OSINT News Aggregator
+# Guía de Migración - OSINT OA
 
 ## Resumen de Cambios
 
@@ -117,7 +117,7 @@ class InvestigationPhase(str, Enum):
 # Variables de entorno para observabilidad
 export LANGCHAIN_TRACING_V2=true
 export LANGCHAIN_API_KEY=your-langsmith-api-key
-export LANGCHAIN_PROJECT=osint-aggregator
+export LANGCHAIN_PROJECT=osint-oa
 ```
 
 ---

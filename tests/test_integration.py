@@ -159,17 +159,17 @@ class TestConfigIntegration:
         # These may be None but should exist as properties
         assert hasattr(settings, 'TELEGRAM_APP_ID')
         assert hasattr(settings, 'TELEGRAM_API_HASH')
-        assert hasattr(settings, 'TELEGRAM_MCP_PATH')
+        # TELEGRAM_MCP_PATH removed - now using Telethon
 
 
 class TestTelegramIntegration:
     """Test Telegram integration (mock/structure tests)."""
     
-    def test_mcp_client_initialization(self):
-        """Test MCP client can be initialized."""
-        from integrations.telegram import TelegramMCPClient
+    def test_telethon_client_initialization(self):
+        """Test Telethon client can be initialized."""
+        from integrations.telegram import TelethonClient
         
-        client = TelegramMCPClient()
+        client = TelethonClient()
         assert client is not None
     
     def test_listener_initialization(self):

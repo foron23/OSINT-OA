@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - PhoneInfoga Tools
+# OSINT OA - PhoneInfoga Tools
 # =============================================================================
 """
 PhoneInfoga integration tools for phone number OSINT.

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OSINT Aggregator</title>
+    <title>OSINT OA</title>
     <link rel="stylesheet" href="styles.css">
     <!-- Marked.js for Markdown rendering -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -14,7 +14,7 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>🔍 OSINT Aggregator</h1>
+            <h1>🔍 OSINT OA</h1>
             <p class="subtitle">Agent-based OSINT Collection & Analysis</p>
         </header>
 
@@ -47,6 +47,92 @@
                         <button type="submit" class="btn btn-primary" id="collectBtn">
                             🚀 Start Collection
                         </button>
+                    </div>
+                </div>
+                
+                <!-- Agent Selection -->
+                <div class="form-row agent-selection">
+                    <div class="form-group full-width">
+                        <label class="agent-mode-label">
+                            <input type="checkbox" id="agentModeAuto" checked>
+                            <span>🤖 Auto-select agents (recommended)</span>
+                        </label>
+                    </div>
+                </div>
+                <div id="agentCheckboxes" class="agent-checkboxes hidden">
+                    <p class="agent-hint">Select specific agents to use in this investigation:</p>
+                    <div class="agent-grid">
+                        <!-- Search Agents -->
+                        <div class="agent-category">
+                            <h4>🔍 Search</h4>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="TavilySearchAgent">
+                                <span>Tavily Search</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="DuckDuckGoSearchAgent">
+                                <span>DuckDuckGo</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="GoogleDorkingAgent">
+                                <span>Google Dorking</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Analysis Agents -->
+                        <div class="agent-category">
+                            <h4>🔬 Analysis</h4>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="WebScraperAgent">
+                                <span>Web Scraper</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="ThreatIntelAgent">
+                                <span>Threat Intel</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="IOCAnalysisAgent">
+                                <span>IOC Analysis</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="HybridOsintAgent">
+                                <span>Hybrid OSINT</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Identity Agents -->
+                        <div class="agent-category">
+                            <h4>👤 Identity</h4>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="MaigretAgent">
+                                <span>Maigret (Username)</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="HoleheAgent">
+                                <span>Holehe (Email)</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="PhoneInfogaAgent">
+                                <span>PhoneInfoga (Phone)</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Infrastructure Agents -->
+                        <div class="agent-category">
+                            <h4>🌐 Infrastructure</h4>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="BbotAgent">
+                                <span>Bbot (Domain)</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="agents" value="ReportGeneratorAgent">
+                                <span>Report Generator</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="agent-actions">
+                        <button type="button" class="btn btn-sm btn-outline" id="selectAllAgents">Select All</button>
+                        <button type="button" class="btn btn-sm btn-outline" id="deselectAllAgents">Deselect All</button>
                     </div>
                 </div>
             </form>
@@ -162,6 +248,110 @@
                 <button class="btn btn-outline" id="cancelDelete">Cancel</button>
                 <button class="btn btn-danger" id="confirmDelete">Delete</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Continue Investigation Modal -->
+    <div id="continueModal" class="modal continue-modal hidden">
+        <div class="modal-content continue-modal-content">
+            <h3>🔄 Continue Investigation</h3>
+            <p class="continue-context">Continuing from: <span id="continueFromQuery"></span></p>
+            
+            <form id="continueForm" class="continue-form">
+                <input type="hidden" id="continueRunId" name="runId">
+                
+                <div class="form-group">
+                    <label for="newInstructions">New Instructions / Focus Areas</label>
+                    <textarea id="newInstructions" name="newInstructions" 
+                              placeholder="e.g., Focus on the IP addresses found, investigate the domain further..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="continueDepth">Investigation Depth</label>
+                    <select id="continueDepth" name="depth">
+                        <option value="quick">Quick (1-2 agents)</option>
+                        <option value="standard" selected>Standard (2-4 agents)</option>
+                        <option value="deep">Deep (all relevant agents)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="continueAgentModeAuto" checked>
+                        🤖 Auto-select agents
+                    </label>
+                </div>
+                
+                <div id="continueAgentCheckboxes" class="agent-checkboxes hidden">
+                    <p class="agent-hint">Select specific agents for this continuation:</p>
+                    <div class="agent-grid">
+                        <!-- Search Agents -->
+                        <div class="agent-category">
+                            <h4>🔍 Search</h4>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="continueAgents" value="TavilySearchAgent">
+                                <span>Tavily Search</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="continueAgents" value="DuckDuckGoSearchAgent">
+                                <span>DuckDuckGo</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="continueAgents" value="GoogleDorkingAgent">
+                                <span>Google Dorking</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Analysis Agents -->
+                        <div class="agent-category">
+                            <h4>🔬 Analysis</h4>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="continueAgents" value="WebScraperAgent">
+                                <span>Web Scraper</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="continueAgents" value="ThreatIntelAgent">
+                                <span>Threat Intel</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="continueAgents" value="IOCAnalysisAgent">
+                                <span>IOC Analysis</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Identity & Infra -->
+                        <div class="agent-category">
+                            <h4>👤 Identity & Infra</h4>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="continueAgents" value="MaigretAgent">
+                                <span>Maigret</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="continueAgents" value="HoleheAgent">
+                                <span>Holehe</span>
+                            </label>
+                            <label class="agent-checkbox">
+                                <input type="checkbox" name="continueAgents" value="BbotAgent">
+                                <span>Bbot</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="previousIocsSection" class="form-group hidden">
+                    <label>Previous IOCs to Focus On</label>
+                    <div id="previousIocs" class="evidence-select">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+                
+                <div class="continue-modal-actions">
+                    <button type="button" class="btn btn-outline" id="cancelContinue">Cancel</button>
+                    <button type="submit" class="btn btn-primary continue-btn" id="confirmContinue">
+                        🔄 Continue Investigation
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 

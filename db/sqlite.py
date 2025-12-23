@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Database Layer
+# OSINT OA - Database Layer
 # =============================================================================
 """
 SQLite database connection and schema initialization.
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_SQL = """
 -- =============================================================================
--- OSINT News Aggregator Database Schema
+-- OSINT OA Database Schema
 -- =============================================================================
 
 -- Runs table: tracks collection executions

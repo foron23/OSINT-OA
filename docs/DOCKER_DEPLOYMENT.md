@@ -1,6 +1,6 @@
 # 🐳 Guía de Despliegue con Docker
 
-Este documento describe cómo desplegar OSINT News Aggregator en cualquier servidor usando Docker.
+Este documento describe cómo desplegar OSINT OA en cualquier servidor usando Docker.
 
 ## 📋 Índice
 
@@ -43,7 +43,7 @@ docker compose version
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    OSINT News Aggregator                        │
+│                         OSINT OA                                │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐   │
@@ -123,7 +123,7 @@ El contenedor soporta **dos modos** de operación para Telegram MCP:
 
 ```bash
 # 1. Clonar/copiar el proyecto
-cd /opt/osint-aggregator
+cd /opt/osint-oa
 
 # 2. Configurar variables de entorno
 cp .env.example .env
@@ -222,7 +222,7 @@ El binario `telegram-mcp` requiere autenticación inicial con tu cuenta de Teleg
 
 ```bash
 # Entrar al contenedor
-docker compose -f docker-compose.prod.yml exec osint-aggregator bash
+docker compose -f docker-compose.prod.yml exec osint-oa bash
 
 # Ejecutar script de setup
 python scripts/setup_telegram.py
@@ -263,7 +263,7 @@ docker compose -f docker-compose.prod.yml logs --tail=100
 docker compose -f docker-compose.prod.yml ps
 
 # Uso de recursos
-docker stats osint-news-aggregator-prod
+docker stats osint-oa-prod
 ```
 
 ### Actualizar
@@ -284,7 +284,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 # Manual
 docker run --rm \
-  -v osint-news-data-prod:/data \
+  -v osint-oa-data-prod:/data \
   -v $(pwd):/backup \
   alpine tar czf /backup/backup-$(date +%Y%m%d).tar.gz /data
 ```
@@ -297,7 +297,7 @@ docker compose -f docker-compose.prod.yml down
 
 # Restaurar backup
 docker run --rm \
-  -v osint-news-data-prod:/data \
+  -v osint-oa-data-prod:/data \
   -v $(pwd):/backup \
   alpine tar xzf /backup/backup-YYYYMMDD.tar.gz -C /
 
@@ -336,14 +336,14 @@ grep OPENAI_API_KEY .env  # Debe mostrar la key (no el placeholder)
 curl http://localhost:5000/api/runs
 
 # Entrar al contenedor y verificar
-docker compose -f docker-compose.prod.yml exec osint-aggregator curl localhost:5000/api/runs
+docker compose -f docker-compose.prod.yml exec osint-oa curl localhost:5000/api/runs
 ```
 
 ### Error de permisos
 
 ```bash
 # Verificar que los volúmenes tienen permisos correctos
-docker compose -f docker-compose.prod.yml exec osint-aggregator ls -la /app/data
+docker compose -f docker-compose.prod.yml exec osint-oa ls -la /app/data
 ```
 
 ### Telegram no funciona
@@ -355,7 +355,7 @@ docker compose -f docker-compose.prod.yml exec osint-aggregator ls -la /app/data
 
 2. Re-ejecutar setup:
    ```bash
-   docker compose -f docker-compose.prod.yml exec osint-aggregator python scripts/setup_telegram.py
+   docker compose -f docker-compose.prod.yml exec osint-oa python scripts/setup_telegram.py
    ```
 
 ### Out of memory

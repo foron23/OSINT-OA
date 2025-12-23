@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# OSINT News Aggregator - Deploy Script
+# OSINT OA - Deploy Script
 # =============================================================================
 # Script para desplegar la aplicación en un servidor nuevo
 #
@@ -24,7 +24,7 @@ NC='\033[0m'
 
 # Configuración
 COMPOSE_FILE="docker-compose.prod.yml"
-PROJECT_NAME="osint-aggregator"
+PROJECT_NAME="osint-oa"
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -86,7 +86,7 @@ build() {
 # Deploy
 # =============================================================================
 deploy() {
-    log_step "Deploying OSINT News Aggregator..."
+    log_step "Deploying OSINT OA..."
     
     # Crear directorios si no existen
     mkdir -p data logs
@@ -142,7 +142,7 @@ backup() {
     log_step "Creating backup..."
     BACKUP_NAME="osint-backup-$(date +%Y%m%d-%H%M%S).tar.gz"
     docker run --rm \
-        -v osint-news-data-prod:/data \
+        -v osint-oa-data-prod:/data \
         -v "$(pwd)":/backup \
         alpine tar czf "/backup/$BACKUP_NAME" /data
     log_info "Backup created: $BACKUP_NAME"

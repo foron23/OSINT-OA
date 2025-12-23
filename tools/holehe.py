@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Holehe Tools
+# OSINT OA - Holehe Tools
 # =============================================================================
 """
 Holehe integration tools for OSINT email enumeration.

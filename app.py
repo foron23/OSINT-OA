@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # =============================================================================
-# OSINT News Aggregator - Flask Application Entrypoint
+# OSINT OA - Flask Application Entrypoint
 # =============================================================================
 """
 Main Flask application entrypoint.
@@ -12,8 +12,10 @@ Or with Flask CLI:
     flask run
 """
 
+import asyncio
 import logging
 import os
+import threading
 from pathlib import Path
 
 from flask import Flask, send_from_directory
@@ -134,15 +136,75 @@ def create_app() -> Flask:
 app = create_app()
 
 
+# =============================================================================
+# Telegram Listener Background Thread
+# =============================================================================
+
+def start_telegram_listener():
+    """
+    Start the Telegram listener in a background thread.
+    
+    Only starts if Telegram credentials are configured and TELEGRAM_LISTENER_ENABLED=true.
+    
+    Note: For development, it's recommended to run the listener separately or use
+    production mode with supervisord to avoid SQLite session conflicts.
+    """
+    # Check if listener is explicitly enabled
+    listener_enabled = os.environ.get('TELEGRAM_LISTENER_ENABLED', 'false').lower() == 'true'
+    
+    if not listener_enabled:
+        logger.info("Telegram listener disabled (set TELEGRAM_LISTENER_ENABLED=true to enable)")
+        return
+    
+    # Check if Telegram is configured
+    tg_app_id = os.environ.get('TG_APP_ID')
+    tg_api_hash = os.environ.get('TG_API_HASH')
+    target_dialog = os.environ.get('TELEGRAM_TARGET_DIALOG')
+    
+    if not tg_app_id or not tg_api_hash:
+        logger.info("Telegram credentials not configured, listener not started")
+        logger.info("Set TG_APP_ID and TG_API_HASH to enable Telegram listener")
+        return
+    
+    if not target_dialog:
+        logger.info("TELEGRAM_TARGET_DIALOG not set, listener not started")
+        return
+    
+    def run_listener_thread():
+        """Run the listener in its own event loop."""
+        try:
+            # Import here to avoid issues if Telethon not installed
+            from integrations.telegram.listener import run_listener
+            
+            # Create new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            logger.info("Starting Telegram listener in background thread...")
+            loop.run_until_complete(run_listener())
+        except ImportError as e:
+            logger.error(f"Failed to import TelegramListener: {e}")
+        except Exception as e:
+            logger.error(f"Telegram listener error: {e}")
+    
+    # Start listener in daemon thread
+    listener_thread = threading.Thread(target=run_listener_thread, daemon=True)
+    listener_thread.start()
+    logger.info("Telegram listener thread started")
+
+
 if __name__ == '__main__':
     # Ensure data directory exists
     config.ensure_data_dir()
+    
+    # Start Telegram listener in background (if configured)
+    start_telegram_listener()
     
     # Run the application
     port = int(os.environ.get('PORT', 5000))
     host = os.environ.get('HOST', '0.0.0.0')
     
-    logger.info(f"Starting OSINT News Aggregator on {host}:{port}")
+    logger.info(f"Starting OSINT OA on {host}:{port}")
     logger.info(f"Database: {config.DATABASE_PATH}")
     logger.info(f"Debug mode: {config.FLASK_DEBUG}")
     

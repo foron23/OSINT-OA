@@ -96,7 +96,7 @@ def handle_database_error(e: Exception):
 
 async def publish_to_telegram(report_text: str, topic: str, run_id: int) -> dict:
     """
-    Publish investigation report to Telegram via MCP service.
+    Publish investigation report to Telegram via Telethon.
     
     Args:
         report_text: The report content to publish
@@ -112,47 +112,31 @@ async def publish_to_telegram(report_text: str, topic: str, run_id: int) -> dict
         logger.warning("TELEGRAM_TARGET_DIALOG not configured, skipping publish")
         return {"published": False, "reason": "TELEGRAM_TARGET_DIALOG not configured"}
     
-    telegram_mcp_url = os.getenv("TELEGRAM_MCP_URL", "http://localhost:5001")
-    
-    # Format the message
-    # Telegram has a 4096 character limit per message
-    header = f"🔍 **OSINT Investigation Report**\n"
-    header += f"📋 Topic: {topic}\n"
-    header += f"🆔 Run ID: {run_id}\n"
-    header += f"{'─' * 30}\n\n"
-    
-    # Truncate if too long (leave room for header)
-    max_content = 4000 - len(header)
-    if len(report_text) > max_content:
-        report_text = report_text[:max_content - 100] + "\n\n... [Report truncated, see full version in web UI]"
-    
-    message = header + report_text
-    
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{telegram_mcp_url}/send",
-                json={
-                    "name": target_dialog,
-                    "text": message
-                }
-            )
+        from integrations.telegram.telethon_client import TelethonReportPublisher
+        
+        publisher = TelethonReportPublisher(target_dialog=target_dialog)
+        
+        result = await publisher.publish_report(
+            report_markdown=report_text,
+            query=topic,
+            run_id=run_id,
+            dialog_name=target_dialog
+        )
+        
+        await publisher.close()
+        
+        if result.get("success"):
+            logger.info(f"Report published to Telegram: {target_dialog}")
+            return {"published": True, "dialog": target_dialog, "result": result}
+        else:
+            error_msg = result.get("error", "Unknown error")
+            logger.error(f"Telegram publish failed: {error_msg}")
+            return {"published": False, "reason": error_msg}
             
-            if response.status_code == 200:
-                result = response.json()
-                logger.info(f"Report published to Telegram: {target_dialog}")
-                return {"published": True, "dialog": target_dialog, "result": result}
-            else:
-                error_msg = response.text
-                logger.error(f"Telegram publish failed: {response.status_code} - {error_msg}")
-                return {"published": False, "reason": f"HTTP {response.status_code}: {error_msg}"}
-                
-    except httpx.TimeoutException:
-        logger.error("Telegram MCP service timeout")
-        return {"published": False, "reason": "Telegram MCP service timeout"}
-    except httpx.ConnectError:
-        logger.error("Cannot connect to Telegram MCP service")
-        return {"published": False, "reason": "Cannot connect to Telegram MCP service"}
+    except ImportError as e:
+        logger.error(f"Telethon not available: {e}")
+        return {"published": False, "reason": "Telethon not installed"}
     except Exception as e:
         logger.error(f"Telegram publish error: {e}")
         return {"published": False, "reason": str(e)}
@@ -244,6 +228,143 @@ def delete_run(run_id):
         return success_response({"message": f"Run {run_id} deleted successfully"})
     else:
         return error_response("Failed to delete run", 500)
+
+
+@api.route('/runs/<int:run_id>/continue', methods=['POST'])
+@async_route
+async def continue_investigation(run_id):
+    """
+    Continue a previous investigation with new instructions.
+    
+    Allows resuming an investigation by providing:
+    - New instructions or focus areas
+    - Specific agents to use
+    - Selected evidence/IOCs from the previous investigation to focus on
+    
+    Body:
+        new_instructions: Additional instructions or focus areas (optional)
+        agents: List of specific agent names to use (optional)
+        selected_iocs: List of IOC values to focus on (optional)
+        selected_evidence: List of evidence items to include as context (optional)
+        depth: Investigation depth (quick/standard/deep, default: standard)
+        publish_telegram: Whether to publish to Telegram (default True)
+    
+    Returns:
+        New run ID with continued investigation results
+    """
+    # Get original run
+    original_run = RunRepository.get_by_id(run_id)
+    if not original_run:
+        return error_response("Run not found", 404)
+    
+    data = request.get_json() or {}
+    
+    new_instructions = data.get('new_instructions', '')
+    selected_agents = data.get('agents')
+    selected_iocs = data.get('selected_iocs', [])
+    selected_evidence = data.get('selected_evidence', [])
+    depth = data.get('depth', 'standard')
+    publish_telegram = data.get('publish_telegram', True)
+    
+    # Validate agents if provided
+    if selected_agents:
+        if not isinstance(selected_agents, list):
+            return error_response("'agents' must be a list of agent names")
+        from agents.registry import AgentRegistry
+        available_agents = AgentRegistry.list_all()
+        invalid_agents = [a for a in selected_agents if a not in available_agents]
+        if invalid_agents:
+            return error_response(f"Invalid agents: {invalid_agents}. Available: {available_agents}")
+    
+    # Get previous report for context
+    previous_report = ReportRepository.get_by_run_id(run_id)
+    previous_findings = previous_report.report if previous_report else ""
+    
+    # Create new run record
+    try:
+        new_run_id = RunRepository.create(
+            query=f"Continue: {original_run.query}",
+            initiated_by="api",
+            limit_requested=30 if depth == "standard" else (10 if depth == "quick" else 50),
+            scope=original_run.scope if hasattr(original_run, 'scope') else None
+        )
+    except Exception as e:
+        logger.error(f"Failed to create run record: {e}")
+        return handle_database_error(e)
+    
+    # Initialize control agent
+    control_agent = ControlAgent()
+    
+    try:
+        # Build continuation context
+        continue_from = {
+            "previous_findings": previous_findings,
+            "previous_iocs": selected_iocs,
+            "selected_evidence": selected_evidence,
+            "new_instructions": new_instructions,
+            "original_run_id": run_id,
+        }
+        
+        # Run continued investigation
+        result = control_agent.investigate(
+            topic=original_run.query,
+            agents=selected_agents,
+            depth=depth,
+            run_id=new_run_id,
+            continue_from=continue_from
+        )
+        
+        # Extract report text
+        report_text = result.get("report", "")
+        investigation_status = result.get("status", "completed")
+        
+        # Store the report
+        report_obj = Report(
+            run_id=new_run_id,
+            query=f"Continue: {original_run.query}",
+            report=report_text,
+            summary=f"Continued investigation from run #{run_id}: {original_run.query[:80]}"
+        )
+        report_id = ReportRepository.create(report_obj)
+        
+        # Publish to Telegram if enabled
+        telegram_result = {"published": False, "reason": "Publishing disabled"}
+        if publish_telegram and report_text and investigation_status != "failed":
+            logger.info(f"Publishing continued report to Telegram for run {new_run_id}...")
+            telegram_result = await publish_to_telegram(
+                report_text=report_text,
+                topic=f"Continue: {original_run.query}",
+                run_id=new_run_id
+            )
+            logger.info(f"Telegram publish result: {telegram_result}")
+        
+        # Update run status
+        stats = {
+            "depth": depth,
+            "agents_used": selected_agents or result.get("metadata", {}).get("agents_used", "auto"),
+            "telegram_published": telegram_result.get("published", False),
+            "continued_from": run_id,
+            "agents_succeeded": result.get("metadata", {}).get("agents_succeeded", 0),
+            "agents_failed": result.get("metadata", {}).get("agents_failed", 0),
+        }
+        RunRepository.update_status(new_run_id, investigation_status, stats=stats)
+        
+        return success_response({
+            "run_id": new_run_id,
+            "continued_from": run_id,
+            "status": investigation_status,
+            "partial": result.get("partial", False),
+            "report": {
+                "id": report_id,
+                "telegram_published": telegram_result.get("published", False),
+                "telegram_details": telegram_result,
+            },
+            "investigation": result
+        })
+        
+    except Exception as e:
+        RunRepository.update_status(new_run_id, "failed", stats={"error": str(e)})
+        return error_response(f"Continuation failed: {e}", 500)
 
 
 # =============================================================================
@@ -613,6 +734,7 @@ async def collect():
         since: Only collect from this date (ISO-8601)
         scope: Allowed scope for the investigation
         publish_telegram: Whether to publish to Telegram (default True)
+        agents: List of specific agent names to use (optional, default: auto)
     
     Returns:
         Run ID, items collected, report info, and Telegram status
@@ -629,6 +751,18 @@ async def collect():
     since = data.get('since')
     scope = data.get('scope')
     publish_telegram = data.get('publish_telegram', True)
+    selected_agents = data.get('agents')  # New: optional list of agents to use
+    
+    # Validate selected agents if provided
+    if selected_agents:
+        if not isinstance(selected_agents, list):
+            return error_response("'agents' must be a list of agent names")
+        # Validate agent names
+        from agents.registry import AgentRegistry
+        available_agents = AgentRegistry.list_all()
+        invalid_agents = [a for a in selected_agents if a not in available_agents]
+        if invalid_agents:
+            return error_response(f"Invalid agents: {invalid_agents}. Available: {available_agents}")
     
     # Create run record in database first
     try:
@@ -658,12 +792,14 @@ async def collect():
         # Run investigation using the correct method with run_id for tracing
         result = control_agent.investigate(
             topic=query,
+            agents=selected_agents,  # Pass selected agents
             depth=depth,
             run_id=run_id
         )
         
         # Extract report text
         report_text = result.get("report", "")
+        investigation_status = result.get("status", "completed")
         
         # Store the report
         report_obj = Report(
@@ -674,9 +810,9 @@ async def collect():
         )
         report_id = ReportRepository.create(report_obj)
         
-        # Publish to Telegram if enabled
+        # Publish to Telegram if enabled (skip for failed investigations)
         telegram_result = {"published": False, "reason": "Publishing disabled"}
-        if publish_telegram and report_text:
+        if publish_telegram and report_text and investigation_status != "failed":
             logger.info(f"Publishing report to Telegram for run {run_id}...")
             telegram_result = await publish_to_telegram(
                 report_text=report_text,
@@ -685,18 +821,22 @@ async def collect():
             )
             logger.info(f"Telegram publish result: {telegram_result}")
         
-        # Update run status to completed
+        # Update run status based on investigation result
         stats = {
             "depth": depth,
-            "agents_used": result.get("metadata", {}).get("agents_used", "auto"),
+            "agents_used": selected_agents or result.get("metadata", {}).get("agents_used", "auto"),
             "telegram_published": telegram_result.get("published", False),
+            "agents_succeeded": result.get("metadata", {}).get("agents_succeeded", 0),
+            "agents_failed": result.get("metadata", {}).get("agents_failed", 0),
         }
-        RunRepository.update_status(run_id, "completed", stats=stats)
+        RunRepository.update_status(run_id, investigation_status, stats=stats)
         
         # Return response compatible with frontend expectations
         return success_response({
             "run_id": run_id,
             "items_count": 0,  # Agent-based investigation doesn't create items
+            "status": investigation_status,
+            "partial": result.get("partial", False),
             "report": {
                 "id": report_id,
                 "telegram_published": telegram_result.get("published", False),
@@ -735,40 +875,28 @@ def list_tags():
 
 @api.route('/agents', methods=['GET'])
 def list_agents():
-    """List all registered OSINT agents and their status (legacy + LangChain)."""
-    from agents.osint_base import AgentRegistry
-    from agents.langchain_base import LangChainAgentRegistry
+    """List all registered OSINT agents and their status."""
+    from agents.registry import AgentRegistry
     
     agents = []
     
-    # LangChain agents first (preferred)
-    for name, agent in LangChainAgentRegistry.get_all().items():
-        available, msg = agent.is_available()
-        agents.append({
-            "name": name,
-            "available": available,
-            "message": msg,
-            "type": "langchain",
-            "capabilities": agent.capabilities.to_dict()
-        })
-    
-    # Legacy agents
-    for name, agent in AgentRegistry.get_all().items():
-        available, msg = agent.is_available()
-        agents.append({
-            "name": name,
-            "available": available,
-            "message": msg,
-            "type": "legacy",
-            "capabilities": agent.capabilities.to_dict()
-        })
+    # Get all registered agents
+    for name in AgentRegistry.list_all():
+        agent = AgentRegistry.get(name)
+        if agent:
+            available, msg = agent.is_available()
+            agents.append({
+                "name": name,
+                "available": available,
+                "message": msg,
+                "type": "langchain",
+                "capabilities": agent.capabilities.to_dict()
+            })
     
     return success_response({
         "agents": agents,
         "total": len(agents),
         "available": sum(1 for a in agents if a["available"]),
-        "langchain_count": sum(1 for a in agents if a.get("type") == "langchain"),
-        "legacy_count": sum(1 for a in agents if a.get("type") == "legacy")
     })
 
 
@@ -783,3 +911,120 @@ def health_check():
         "database": config.DATABASE_PATH,
         "telegram_configured": bool(config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID)
     })
+
+
+@api.route('/telegram/status', methods=['GET'])
+@async_route
+async def telegram_status():
+    """
+    Check Telegram connectivity status.
+    
+    Returns detailed information about:
+    - Configuration status
+    - Session file status
+    - Connection status
+    - Authenticated user info
+    """
+    import os
+    from pathlib import Path
+    
+    result = {
+        "configured": False,
+        "session_exists": False,
+        "connected": False,
+        "authorized": False,
+        "user": None,
+        "error": None,
+    }
+    
+    # Check configuration
+    app_id = os.getenv("TG_APP_ID") or os.getenv("TELEGRAM_APP_ID")
+    api_hash = os.getenv("TG_API_HASH") or os.getenv("TELEGRAM_API_HASH")
+    
+    if not app_id or not api_hash:
+        result["error"] = "Telegram credentials not configured (TG_APP_ID, TG_API_HASH)"
+        return success_response(result)
+    
+    result["configured"] = True
+    
+    # Check session file
+    session_path = os.getenv("TELEGRAM_SESSION_PATH", "/app/data/telegram-session")
+    session_file = Path(session_path) / "osint_bot.session"
+    
+    result["session_path"] = str(session_path)
+    result["session_exists"] = session_file.exists()
+    
+    if not result["session_exists"]:
+        result["error"] = "Session file not found. Run: python scripts/setup_telegram.py"
+        return success_response(result)
+    
+    # Try to connect
+    try:
+        from integrations.telegram.telethon_client import TelethonClient
+        client = TelethonClient()
+        
+        connected = await client.connect()
+        result["connected"] = connected
+        
+        if connected:
+            result["authorized"] = True
+            me = await client._client.get_me()
+            result["user"] = {
+                "id": me.id,
+                "username": me.username,
+                "first_name": me.first_name,
+                "last_name": me.last_name,
+            }
+            await client.disconnect()
+        else:
+            result["error"] = "Session not authorized. Run: python scripts/setup_telegram.py"
+    except Exception as e:
+        result["error"] = str(e)
+    
+    return success_response(result)
+
+
+@api.route('/telegram/test', methods=['POST'])
+@async_route
+async def telegram_test_message():
+    """
+    Send a test message to verify Telegram integration.
+    
+    Request body:
+    {
+        "chat_id": "optional - defaults to configured TELEGRAM_CHAT_ID",
+        "message": "optional - test message content"
+    }
+    """
+    import os
+    
+    data = request.get_json() or {}
+    chat_id = data.get("chat_id") or os.getenv("TELEGRAM_CHAT_ID")
+    message = data.get("message", "🔧 OSINT-OA Test Message - Telegram integration is working!")
+    
+    if not chat_id:
+        return error_response("No chat_id provided and TELEGRAM_CHAT_ID not configured", 400)
+    
+    try:
+        from integrations.telegram.telethon_client import TelethonClient
+        client = TelethonClient()
+        
+        connected = await client.connect()
+        if not connected:
+            return error_response("Could not connect to Telegram. Run setup_telegram.py first", 503)
+        
+        result = await client.send_message(chat_id, message, parse_mode="html")
+        await client.disconnect()
+        
+        if result.get("success"):
+            return success_response({
+                "status": "sent",
+                "chat_id": chat_id,
+                "message_id": result.get("message_id"),
+            })
+        else:
+            return error_response(result.get("error", "Failed to send message"), 500)
+    
+    except Exception as e:
+        logger.exception("Error sending test message")
+        return error_response(str(e), 500)

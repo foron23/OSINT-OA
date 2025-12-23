@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Agents Package
+# OSINT OA - Agents Package
 # =============================================================================
 """
 Agents package for OSINT collection and orchestration.
@@ -56,6 +56,18 @@ from agents.langgraph_core import (
     create_simple_react_agent,
     create_investigation_graph,
     run_investigation,
+)
+
+# Evidence store for cross-agent intelligence sharing
+from agents.evidence_store import (
+    EvidenceStore,
+    IOC,
+    IOCType,
+    Finding,
+    EvidenceStats,
+    get_evidence_context,
+    AGENT_IOC_RELEVANCE,
+    AGENT_TYPE_MAP,
 )
 
 # Tracing module for execution traceability
@@ -116,6 +128,15 @@ __all__ = [
     # Control agents
     "ControlAgent",
     "ConsolidatorAgent",
+    # Evidence store (cross-agent intelligence)
+    "EvidenceStore",
+    "IOC",
+    "IOCType",
+    "Finding",
+    "EvidenceStats",
+    "get_evidence_context",
+    "AGENT_IOC_RELEVANCE",
+    "AGENT_TYPE_MAP",
     # LangGraph advanced features
     "LangGraphAgentBuilder",
     "InvestigationState",

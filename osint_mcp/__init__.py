@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - MCP Package
+# OSINT OA - MCP Package
 # =============================================================================
 """
 MCP (Model Context Protocol) server package.

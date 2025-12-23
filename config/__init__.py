@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Configuration Module
+# OSINT OA - Configuration Module
 # =============================================================================
 """
 Centralized configuration management.

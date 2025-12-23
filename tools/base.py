@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Base Tool Definitions
+# OSINT OA - Base Tool Definitions
 # =============================================================================
 """
 Base classes and input schemas for LangChain tools.

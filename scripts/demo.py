@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # =============================================================================
-# OSINT Aggregator - Demo Script
+# OSINT OA - Demo Script
 # =============================================================================
 """
 Demo script for testing OSINT agents.

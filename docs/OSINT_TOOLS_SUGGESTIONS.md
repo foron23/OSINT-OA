@@ -156,7 +156,7 @@ Este documento contiene la lista de herramientas OSINT integradas y recomendacio
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    OSINT Aggregator                              │
+│                         OSINT OA                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │

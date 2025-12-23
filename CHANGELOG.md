@@ -5,6 +5,207 @@ All notable changes to OSINT Agentic Operations will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2025-12-22
+
+### 🛡️ Investigation Robustness & Advanced Features
+
+Major update adding robust error handling, agent selection UI, and investigation continuation.
+
+### Added
+
+#### Robust Investigation System
+- **Partial completion support** - Investigations now return partial results when errors occur
+  - New `InvestigationProgress` class tracks individual agent results
+  - `AgentResult` dataclass captures success/failure with timing and IOC count
+  - Failed agents don't crash entire investigation
+  - Partial reports generated from successful agent results
+  
+- **Investigation status tracking**
+  - New status values: `completed`, `partial`, `failed`
+  - Frontend shows appropriate status badges
+  - API returns detailed progress information
+
+#### Agent Selection UI
+- **Manual agent selection** in new investigation form
+  - Toggle between "Auto" mode (recommended) and manual selection
+  - Agents grouped by category: Search, Analysis, Identity, Infrastructure
+  - "Select All" / "Deselect All" buttons
+  
+- **Agent validation** in API
+  - `/api/collect` now accepts `agents` parameter
+  - Invalid agent names return helpful error message
+
+#### Investigation Continuation
+- **Continue Investigation feature**
+  - New `/api/runs/{id}/continue` endpoint
+  - Resume investigations with new instructions
+  - Select specific agents for continuation
+  - Focus on specific IOCs from previous investigation
+  
+- **Continue modal in UI**
+  - Shows previous query context
+  - Depth selection (quick/standard/deep)
+  - Agent selection for continuation
+  - Previous IOCs available for selection
+
+#### Tests
+- `tests/test_control_features.py` - Comprehensive tests for new features
+  - InvestigationProgress tracking tests
+  - AgentResult dataclass tests
+  - Thread-local progress storage tests
+  - ControlAgent feature tests
+  - Agent selection validation tests
+  - Partial report generation tests
+
+### Changed
+
+#### Control Agent
+- `investigate()` method now accepts `continue_from` parameter
+- Enhanced query includes continuation context when provided
+- Returns `progress` dictionary with agent success/failure counts
+
+#### API Routes
+- `/api/collect` enhanced with `agents` parameter support
+- Response includes `status`, `partial`, and `progress` fields
+- Run status updated based on investigation result
+
+#### Frontend
+- `startCollection()` handles partial completion messages
+- `viewRun()` shows "Continue Investigation" button
+- New styles for agent selection and continue modal
+
+### Technical Details
+
+#### New Classes (agents/control.py)
+```python
+@dataclass
+class AgentResult:
+    agent_name: str
+    success: bool
+    result: str = ""
+    error: str = ""
+    duration_seconds: float = 0.0
+    iocs_extracted: int = 0
+
+@dataclass  
+class InvestigationProgress:
+    run_id: Optional[int]
+    topic: str
+    depth: str
+    started_at: Optional[datetime]
+    agent_results: List[AgentResult]
+    # ... tracking methods
+```
+
+#### New API Endpoint
+```
+POST /api/runs/{id}/continue
+
+Body:
+  new_instructions: string (optional)
+  agents: string[] (optional)
+  selected_iocs: string[] (optional)
+  depth: "quick" | "standard" | "deep" (default: "standard")
+  publish_telegram: boolean (default: true)
+
+Response:
+  run_id: number (new run)
+  continued_from: number (original run)
+  status: "completed" | "partial" | "failed"
+  ...
+```
+
+---
+
+## [1.3.0] - 2025-12-22
+
+### 🔧 Telegram Migration & Agent Registration Fixes
+
+Major update replacing MCP with Telethon and fixing agent registration issues.
+
+### Changed
+
+#### Telegram Integration
+- **Migrated from telegram-mcp to Telethon** (Python native library)
+  - No external Go binary dependency
+  - Better error handling and reconnection logic
+  - Full async support
+  - Rich HTML formatting for messages
+  
+- **Updated Docker configuration**
+  - Removed telegram-mcp binary from Dockerfiles
+  - Session directory changed to `.telegram-session` (hidden folder)
+  - Fixed permissions (UID 999 for container user)
+
+#### Agent System
+- **Increased recursion limit** from 25 to 50 in `agents/base.py`
+  - Prevents "GraphRecursionError" on complex investigations
+  - Applied to all LangChain agents via config parameter
+  
+- **Simplified ControlAgent prompt**
+  - Reduced references to `get_shared_evidence_summary`
+  - Prevents infinite loop when evidence context unavailable
+  - Cleaner workflow instructions
+
+### Added
+
+#### New OSINT Agents
+- **HoleheAgent** (`agents/osint/holehe.py`): Email OSINT specialist
+  - Checks email registration across 100+ platforms
+  - Digital footprint analysis
+  
+- **PhoneInfogaAgent** (`agents/osint/phoneinfoga.py`): Phone number OSINT
+  - Carrier and country identification
+  - Line type detection (mobile/landline/VoIP)
+  - Social media footprint scanning
+
+#### Telegram API Endpoints
+- `GET /api/telegram/status` - Check Telegram connectivity
+- `POST /api/telegram/test` - Send test message
+
+#### Telegram Tests
+- `tests/test_telegram.py` - 14 tests for Telethon integration
+  - Import tests
+  - Configuration tests
+  - Session directory tests
+  - Connectivity tests (skipped when not authenticated)
+
+#### Documentation
+- `docs/TELEGRAM_SETUP.md` - Updated setup guide for Telethon
+
+### Fixed
+
+- **Agent registry** - Fixed import error in `api/routes.py`
+  - Changed from non-existent `agents.osint_base` to `agents.registry`
+  
+- **Agent count** - Now 12 agents registered:
+  1. TavilySearchAgent
+  2. DuckDuckGoSearchAgent
+  3. GoogleDorkingAgent
+  4. WebScraperAgent
+  5. ThreatIntelAgent
+  6. IOCAnalysisAgent
+  7. HybridOsintAgent
+  8. ReportGeneratorAgent
+  9. MaigretAgent
+  10. BbotAgent
+  11. HoleheAgent ✨ NEW
+  12. PhoneInfogaAgent ✨ NEW
+
+### Migration Notes
+
+1. **Telegram Session**: Old `session.json` from MCP is incompatible
+   ```bash
+   docker-compose exec osint-oa python scripts/setup_telegram.py
+   ```
+
+2. **Session Directory**: Changed from `telegram-session` to `.telegram-session`
+   ```bash
+   sudo chown -R 999:999 .telegram-session/
+   ```
+
+---
+
 ## [1.2.0] - 2025-12-16
 
 ### 🔧 OSINT Tools Enhancement & New Integrations

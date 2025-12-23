@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# OSINT News Aggregator - Docker Entrypoint Script
+# OSINT OA - Docker Entrypoint Script
 # =============================================================================
 # Este script se ejecuta al iniciar el contenedor y realiza:
 # 1. Validación de variables de entorno requeridas
@@ -127,29 +127,27 @@ print('Database initialized successfully')
 }
 
 # =============================================================================
-# Verificación de Telegram MCP
+# Verificación de Telegram (Telethon)
 # =============================================================================
-check_telegram_mcp() {
-    log_info "Checking Telegram MCP binary..."
-    
-    if [ -f "$TELEGRAM_MCP_PATH" ]; then
-        if [ -x "$TELEGRAM_MCP_PATH" ]; then
-            log_info "Telegram MCP binary found and executable"
-        else
-            log_warn "Telegram MCP binary found but not executable, fixing..."
-            chmod +x "$TELEGRAM_MCP_PATH"
-        fi
-    else
-        log_warn "Telegram MCP binary not found at: $TELEGRAM_MCP_PATH"
-        log_warn "Telegram integration will not be available"
-    fi
+check_telegram() {
+    log_info "Checking Telegram integration..."
     
     # Verificar sesión de Telegram
     if [ -d "$TELEGRAM_SESSION_PATH" ]; then
-        log_info "Telegram session directory exists"
+        log_info "Telegram session directory exists: $TELEGRAM_SESSION_PATH"
     else
         log_info "Creating Telegram session directory..."
         mkdir -p "$TELEGRAM_SESSION_PATH"
+    fi
+    
+    # Verificar si hay archivo de sesión Telethon
+    if [ -f "$TELEGRAM_SESSION_PATH/osint_bot.session" ]; then
+        log_info "✅ Telethon session file found - Telegram integration ready"
+        export TELEGRAM_MODE="telethon"
+    else
+        log_warn "No Telegram session found"
+        log_warn "Run setup to authenticate: python scripts/setup_telegram_telethon.py"
+        export TELEGRAM_MODE="none"
     fi
 }
 
@@ -157,12 +155,11 @@ check_telegram_mcp() {
 # Mostrar Configuración
 # =============================================================================
 show_config() {
-    log_info "=== OSINT Aggregator Configuration ==="
+    log_info "=== OSINT OA Configuration ==="
     echo "  Flask Debug: ${FLASK_DEBUG:-0}"
     echo "  Database: ${DATABASE_PATH}"
-    echo "  Telegram MCP: ${TELEGRAM_MCP_PATH}"
-    echo "  Telegram MCP Service: ${TELEGRAM_MCP_USE_SERVICE:-false}"
-    echo "  Telegram MCP Service URL: ${TELEGRAM_MCP_SERVICE_URL:-N/A}"
+    echo "  Telegram Mode: ${TELEGRAM_MODE:-telethon}"
+    echo "  Telegram Session Path: ${TELEGRAM_SESSION_PATH}"
     echo "  OpenAI Model: ${OPENAI_MODEL:-gpt-4o-mini}"
     echo "  Gunicorn Workers: ${GUNICORN_WORKERS:-4}"
     echo "  Gunicorn Threads: ${GUNICORN_THREADS:-2}"
@@ -216,7 +213,7 @@ fix_permissions() {
 # Main
 # =============================================================================
 main() {
-    log_info "Starting OSINT Aggregator..."
+    log_info "Starting OSINT OA..."
     
     # Arreglar permisos de volúmenes (si somos root)
     fix_permissions
@@ -224,19 +221,18 @@ main() {
     # Ejecutar validaciones
     validate_env
     init_database
-    check_telegram_mcp
+    check_telegram
     prepare_logs
     show_config
     
     # Detectar modo de ejecución
     if [ "$1" = "supervisord" ]; then
-        log_info "Starting in MULTI-SERVICE mode (Flask + Telegram MCP Service)"
+        log_info "Starting in MULTI-SERVICE mode (Flask + Telegram Listener)"
         log_info "  - Flask API: http://0.0.0.0:5000"
-        log_info "  - Telegram MCP Service: http://0.0.0.0:5001"
+        log_info "  - Telegram Listener: Telethon (real-time)"
     elif [ "$1" = "gunicorn" ]; then
         log_info "Starting in SINGLE-SERVICE mode (Flask only)"
         log_info "  - Flask API: http://0.0.0.0:5000"
-        log_info "  - Telegram MCP: on-demand (direct binary calls)"
     fi
     
     log_info "Starting application..."

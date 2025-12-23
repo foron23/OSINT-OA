@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # =============================================================================
-# OSINT Aggregator - Telegram Listener Script
+# OSINT OA - Telegram Listener Script
 # =============================================================================
 """
 Run the Telegram Message Listener service.

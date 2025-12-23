@@ -16,7 +16,7 @@
 
 **Sistema de Operaciones OSINT Agéntico** - Una plataforma avanzada de inteligencia de código abierto basada en agentes LangChain/LangGraph que colaboran para realizar investigaciones exhaustivas.
 
-[![Tests](https://img.shields.io/badge/tests-139%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-222%20passed-brightgreen)](tests/)
 [![Python](https://img.shields.io/badge/python-3.12+-blue)](https://python.org)
 [![LangChain](https://img.shields.io/badge/LangChain-ReAct-orange)](https://langchain.com)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -241,7 +241,7 @@ Accede a `http://localhost:5000` para el panel web con tema hacker (negro/rojo).
 
 ## 📱 Integración Telegram - Guía Completa
 
-OSINT Aggregator incluye un bot de Telegram completo que permite ejecutar investigaciones y consultar resultados directamente desde un chat.
+OSINT OA incluye un bot de Telegram completo que permite ejecutar investigaciones y consultar resultados directamente desde un chat.
 
 ### Comandos Disponibles
 
@@ -301,7 +301,70 @@ Investigate recent DDoS attacks on banks
 /osint find accounts for username "targetuser123"
 ```
 
-### Configuración
+### Configuración Rápida de Telegram
+
+Para habilitar la integración con Telegram (tanto el listener de comandos como la publicación de reportes), sigue estos pasos:
+
+#### 1. Obtener credenciales de Telegram API
+
+1. Ve a [https://my.telegram.org/apps](https://my.telegram.org/apps)
+2. Inicia sesión con tu número de teléfono
+3. Crea una nueva aplicación (si no tienes una)
+4. Copia el `App api_id` y `App api_hash`
+
+#### 2. Configurar variables de entorno
+
+Añade estas variables a tu archivo `.env`:
+
+```env
+# Credenciales de Telegram (obligatorio)
+TG_APP_ID=12345678
+TG_API_HASH=0123456789abcdef0123456789abcdef
+
+# Chat donde publicar reportes y recibir comandos
+# Puede ser: nombre del chat, ID numérico, o username (@canal)
+TELEGRAM_TARGET_DIALOG=Mi Chat OSINT
+
+# Opcional: intervalo de polling en segundos (default: 10)
+TELEGRAM_POLL_INTERVAL=10
+```
+
+#### 3. Configurar la sesión (primera vez)
+
+Ejecuta el script de configuración para autenticarte:
+
+```bash
+# Con Docker
+docker exec -it osint-oa python scripts/setup_telegram.py
+
+# Sin Docker
+python scripts/setup_telegram.py
+```
+
+El script te pedirá:
+1. Tu número de teléfono (con código de país, ej: +34612345678)
+2. El código de verificación que recibirás en Telegram
+3. (Opcional) Tu contraseña 2FA si la tienes activa
+
+#### 4. Verificar que funciona
+
+```bash
+# Ver logs del listener
+docker logs osint-oa 2>&1 | grep -i telegram
+
+# Deberías ver:
+# INFO - Telegram listener thread started
+# INFO - 🤖 Listener active. Press Ctrl+C to stop.
+```
+
+Ahora puedes enviar comandos al chat configurado:
+- `/osint investigate ransomware attacks` - Iniciar investigación
+- `/status` - Ver estado del bot
+- `/help` - Ver comandos disponibles
+
+> **Nota**: La sesión se guarda en `data/telegram-session/` y persiste entre reinicios.
+
+### Configuración Avanzada
 
 1. Configura las variables en `.env`:
 ```env
@@ -328,7 +391,12 @@ python -m pytest tests/ --cov=. --cov-report=html
 
 # Solo smoke tests
 python -m pytest tests/test_smoke.py -v
+
+# Sin tests de Telegram (evita conflictos con sesión activa)
+python -m pytest tests/ -v --ignore=tests/test_telegram.py
 ```
+
+> **Nota**: Si el listener de Telegram está activo, algunos tests pueden fallar con "database is locked" debido a que la sesión SQLite de Telethon está en uso. Esto es normal y no indica un problema.
 
 ## 📊 Estructura de Datos
 

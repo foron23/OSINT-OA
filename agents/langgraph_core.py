@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - LangGraph Core
+# OSINT OA - LangGraph Core
 # =============================================================================
 """
 LangGraph integration module for advanced agent orchestration.

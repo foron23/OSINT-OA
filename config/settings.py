@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Configuration Settings
+# OSINT OA - Configuration Settings
 # =============================================================================
 """
 Application settings loaded from environment variables.
@@ -156,10 +156,10 @@ class Settings:
         return os.getenv("OSINT_TOOL_PATH", "osint-tool")
     
     @property
-    def TELEGRAM_MCP_PATH(self) -> str:
-        """Path to telegram-mcp binary (juananpe fork with send-direct)."""
-        default = str(self.BIN_DIR / "telegram-mcp")
-        return os.getenv("TELEGRAM_MCP_PATH", default)
+    def TELEGRAM_SESSION_PATH(self) -> str:
+        """Path to Telethon session storage."""
+        default = str(self.DATA_DIR / "telegram-session")
+        return os.getenv("TELEGRAM_SESSION_PATH", default)
     
     # =========================================================================
     # Rate Limits and Timeouts

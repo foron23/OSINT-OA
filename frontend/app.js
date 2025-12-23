@@ -1,5 +1,5 @@
 // =============================================================================
-// OSINT Aggregator - Frontend Application
+// OSINT OA - Frontend Application
 // =============================================================================
 
 /**
@@ -173,18 +173,26 @@ async function loadRuns(filters = {}) {
             return;
         }
         
-        container.innerHTML = data.runs.map(run => `
-            <div class="run-item" data-run-id="${run.id}">
-                <span class="run-id">#${run.id}</span>
-                <span class="run-query">${escapeHtml(truncate(run.query, 50))}</span>
-                <span class="run-status ${run.status}">${run.status}</span>
-                <span class="run-date">${formatDate(run.started_at)}</span>
-                <div class="run-actions">
-                    <button class="btn btn-sm btn-secondary" onclick="viewRun(${run.id})">View</button>
-                    <button class="btn btn-sm btn-outline" onclick="showDeleteModal(${run.id})">🗑️</button>
+        container.innerHTML = data.runs.map(run => {
+            const canContinue = run.status === 'completed' || run.status === 'partial';
+            const continueButton = canContinue 
+                ? `<button class="btn btn-sm btn-primary" onclick="showContinueModal(${run.id}, '${escapeHtml(run.query).replace(/'/g, "\\'")}')">▶ Continue</button>`
+                : '';
+            
+            return `
+                <div class="run-item" data-run-id="${run.id}">
+                    <span class="run-id">#${run.id}</span>
+                    <span class="run-query">${escapeHtml(truncate(run.query, 50))}</span>
+                    <span class="run-status ${run.status}">${run.status}</span>
+                    <span class="run-date">${formatDate(run.started_at)}</span>
+                    <div class="run-actions">
+                        ${continueButton}
+                        <button class="btn btn-sm btn-secondary" onclick="viewRun(${run.id})">View</button>
+                        <button class="btn btn-sm btn-outline" onclick="showDeleteModal(${run.id})">🗑️</button>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
     } catch (error) {
         container.innerHTML = `<p class="status-message error">Error loading runs: ${error.message}</p>`;
@@ -254,6 +262,14 @@ async function viewRun(runId) {
             <div class="run-detail-actions">
                 <button class="btn btn-secondary" onclick="loadTraces(${runId})">
                     🔬 View Execution Traces
+                </button>
+                ${run.status === 'completed' || run.status === 'partial' ? `
+                    <button class="btn continue-btn" onclick="showContinueModal(${runId}, '${escapeHtml(run.query).replace(/'/g, "\\'")}')">
+                        🔄 Continue Investigation
+                    </button>
+                ` : ''}
+                <button class="btn btn-danger" onclick="showDeleteModal(${runId})">
+                    🗑️ Delete
                 </button>
             </div>
         `;
@@ -496,17 +512,28 @@ async function startCollection(formData) {
         
         if (formData.since) payload.since = formData.since;
         if (formData.scope) payload.scope = formData.scope;
+        if (formData.agents) payload.agents = formData.agents;
         
         const result = await apiRequest('/collect', {
             method: 'POST',
             body: payload,
         });
         
-        showStatus('collectStatus', 
-            `✅ Collection complete! Run #${result.run_id}: ${result.items_count} items collected. ` +
-            (result.report?.telegram_published ? 'Report published to Telegram.' : ''),
-            'success'
-        );
+        // Build status message based on result
+        let statusMsg = `✅ Collection complete! Run #${result.run_id}: `;
+        
+        if (result.status === 'partial') {
+            statusMsg = `⚠️ Partial completion. Run #${result.run_id}: `;
+            const meta = result.investigation?.metadata || {};
+            statusMsg += `${meta.agents_succeeded || 0} agents succeeded, ${meta.agents_failed || 0} failed. `;
+        }
+        
+        statusMsg += result.report?.telegram_published ? 'Report published to Telegram.' : '';
+        
+        const statusType = result.status === 'partial' ? 'warning' : 
+                          result.status === 'failed' ? 'error' : 'success';
+        
+        showStatus('collectStatus', statusMsg, statusType);
         
         // Refresh runs list
         loadRuns();
@@ -563,6 +590,163 @@ async function confirmDelete() {
         
     } catch (error) {
         alert(`Failed to delete: ${error.message}`);
+    }
+}
+
+// =============================================================================
+// Continue Investigation
+// =============================================================================
+
+let continueRunId = null;
+let continueRunQuery = null;
+
+/**
+ * Show continue investigation modal
+ */
+function showContinueModal(runId, query) {
+    continueRunId = runId;
+    continueRunQuery = query;
+    
+    document.getElementById('continueRunId').value = runId;
+    document.getElementById('continueFromQuery').textContent = query;
+    document.getElementById('newInstructions').value = '';
+    document.getElementById('continueDepth').value = 'standard';
+    document.getElementById('continueAgentModeAuto').checked = true;
+    document.getElementById('continueAgentCheckboxes').classList.add('hidden');
+    
+    // Uncheck all agents
+    document.querySelectorAll('input[name="continueAgents"]').forEach(cb => cb.checked = false);
+    
+    // Load previous IOCs if available
+    loadPreviousIocs(runId);
+    
+    document.getElementById('continueModal').classList.remove('hidden');
+}
+
+/**
+ * Hide continue modal
+ */
+function hideContinueModal() {
+    continueRunId = null;
+    continueRunQuery = null;
+    document.getElementById('continueModal').classList.add('hidden');
+}
+
+/**
+ * Load previous IOCs from a run for selection
+ */
+async function loadPreviousIocs(runId) {
+    const section = document.getElementById('previousIocsSection');
+    const container = document.getElementById('previousIocs');
+    
+    try {
+        // Try to get traces with evidence
+        const traces = await apiRequest(`/runs/${runId}/traces?include_data=true`);
+        
+        // Extract IOCs from traces
+        const iocs = new Map(); // Use Map to deduplicate
+        
+        if (traces && Array.isArray(traces)) {
+            for (const trace of traces) {
+                if (trace.evidence && Array.isArray(trace.evidence)) {
+                    for (const ev of trace.evidence) {
+                        if (ev.type && ev.value) {
+                            const key = `${ev.type}:${ev.value}`;
+                            if (!iocs.has(key)) {
+                                iocs.set(key, { type: ev.type, value: ev.value });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (iocs.size > 0) {
+            container.innerHTML = Array.from(iocs.values()).slice(0, 20).map(ioc => `
+                <label class="evidence-item">
+                    <input type="checkbox" name="selectedIocs" value="${escapeHtml(ioc.value)}">
+                    <span class="ioc-type">[${escapeHtml(ioc.type)}]</span>
+                    <span class="ioc-value">${escapeHtml(ioc.value)}</span>
+                </label>
+            `).join('');
+            section.classList.remove('hidden');
+        } else {
+            container.innerHTML = '<p class="hint">No IOCs found in previous investigation.</p>';
+            section.classList.add('hidden');
+        }
+    } catch (error) {
+        console.warn('Could not load previous IOCs:', error);
+        section.classList.add('hidden');
+    }
+}
+
+/**
+ * Submit continue investigation request
+ */
+async function submitContinueInvestigation() {
+    if (!continueRunId) return;
+    
+    const btn = document.getElementById('confirmContinue');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Continuing...';
+    
+    try {
+        const payload = {
+            new_instructions: document.getElementById('newInstructions').value,
+            depth: document.getElementById('continueDepth').value,
+        };
+        
+        // Check if manual agent selection
+        const autoMode = document.getElementById('continueAgentModeAuto');
+        if (!autoMode.checked) {
+            const selectedAgents = Array.from(
+                document.querySelectorAll('input[name="continueAgents"]:checked')
+            ).map(cb => cb.value);
+            
+            if (selectedAgents.length === 0) {
+                alert('Please select at least one agent or enable auto mode.');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                return;
+            }
+            
+            payload.agents = selectedAgents;
+        }
+        
+        // Get selected IOCs
+        const selectedIocs = Array.from(
+            document.querySelectorAll('input[name="selectedIocs"]:checked')
+        ).map(cb => cb.value);
+        
+        if (selectedIocs.length > 0) {
+            payload.selected_iocs = selectedIocs;
+        }
+        
+        const result = await apiRequest(`/runs/${continueRunId}/continue`, {
+            method: 'POST',
+            body: payload,
+        });
+        
+        hideContinueModal();
+        
+        // Show success message
+        let statusMsg = `✅ Continued investigation started! New Run #${result.run_id}`;
+        if (result.status === 'partial') {
+            statusMsg = `⚠️ Continuation partial. New Run #${result.run_id}`;
+        }
+        
+        showStatus('collectStatus', statusMsg, result.status === 'partial' ? 'warning' : 'success');
+        
+        // Refresh runs list and view new run
+        loadRuns();
+        setTimeout(() => viewRun(result.run_id), 500);
+        
+    } catch (error) {
+        alert(`Continue failed: ${getErrorMessage(error)}`);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
 }
 
@@ -631,17 +815,71 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial load
     loadRuns();
     
+    // Agent mode toggle
+    const agentModeAuto = document.getElementById('agentModeAuto');
+    const agentCheckboxes = document.getElementById('agentCheckboxes');
+    
+    if (agentModeAuto && agentCheckboxes) {
+        agentModeAuto.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                agentCheckboxes.classList.add('hidden');
+            } else {
+                agentCheckboxes.classList.remove('hidden');
+            }
+        });
+    }
+    
+    // Select/Deselect all agents
+    const selectAllBtn = document.getElementById('selectAllAgents');
+    const deselectAllBtn = document.getElementById('deselectAllAgents');
+    
+    if (selectAllBtn) {
+        selectAllBtn.addEventListener('click', () => {
+            document.querySelectorAll('input[name="agents"]').forEach(cb => cb.checked = true);
+        });
+    }
+    
+    if (deselectAllBtn) {
+        deselectAllBtn.addEventListener('click', () => {
+            document.querySelectorAll('input[name="agents"]').forEach(cb => cb.checked = false);
+        });
+    }
+    
     // Collection form
     document.getElementById('collectForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+        
+        // Build form data
         const formData = {
             query: document.getElementById('query').value,
             limit: document.getElementById('limit').value,
             since: document.getElementById('since').value,
             scope: document.getElementById('scope').value,
         };
+        
+        // Check if auto mode is disabled (manual agent selection)
+        const autoMode = document.getElementById('agentModeAuto');
+        if (autoMode && !autoMode.checked) {
+            const selectedAgents = Array.from(
+                document.querySelectorAll('input[name="agents"]:checked')
+            ).map(cb => cb.value);
+            
+            if (selectedAgents.length === 0) {
+                showStatus('collectStatus', '⚠️ Please select at least one agent or enable auto mode.', 'warning');
+                return;
+            }
+            
+            formData.agents = selectedAgents;
+        }
+        
         await startCollection(formData);
         e.target.reset();
+        
+        // Reset agent mode to auto after submission
+        if (agentModeAuto) {
+            agentModeAuto.checked = true;
+            agentCheckboxes.classList.add('hidden');
+        }
     });
     
     // Filter form
@@ -665,6 +903,31 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.id === 'deleteModal') hideDeleteModal();
     });
     
+    // Continue investigation modal
+    const continueAgentModeAuto = document.getElementById('continueAgentModeAuto');
+    const continueAgentCheckboxes = document.getElementById('continueAgentCheckboxes');
+    
+    if (continueAgentModeAuto && continueAgentCheckboxes) {
+        continueAgentModeAuto.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                continueAgentCheckboxes.classList.add('hidden');
+            } else {
+                continueAgentCheckboxes.classList.remove('hidden');
+            }
+        });
+    }
+    
+    document.getElementById('cancelContinue').addEventListener('click', hideContinueModal);
+    document.getElementById('continueForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        submitContinueInvestigation();
+    });
+    
+    // Close continue modal on backdrop click
+    document.getElementById('continueModal').addEventListener('click', (e) => {
+        if (e.target.id === 'continueModal') hideContinueModal();
+    });
+    
     // Auto refresh toggle
     document.getElementById('autoRefresh').addEventListener('change', (e) => {
         toggleAutoRefresh(e.target.checked);
@@ -674,6 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Expose functions to global scope for onclick handlers
 window.viewRun = viewRun;
 window.showDeleteModal = showDeleteModal;
+window.showContinueModal = showContinueModal;
 window.loadTraces = loadTraces;
 window.viewTraceDetail = viewTraceDetail;
 window.closeTraceDetail = closeTraceDetail;

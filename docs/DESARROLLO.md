@@ -1,8 +1,8 @@
-# Documentación de Desarrollo - OSINT News Aggregator
+# Documentación de Desarrollo - OSINT OA
 
 ## 📋 Resumen del Proyecto
 
-Este documento describe el desarrollo de la **estructura base** del OSINT News Aggregator, una aplicación web para agregación de noticias OSINT con arquitectura basada en agentes.
+Este documento describe el desarrollo de la **estructura base** del OSINT OA, una aplicación web para agregación de noticias OSINT con arquitectura basada en agentes.
 
 **Actualización v1.3:** Nuevas herramientas OSINT: Holehe, Amass, PhoneInfoga.
 **Actualización v1.2:** Migración completa a LangChain ReAct pattern para todos los agentes.
@@ -260,7 +260,7 @@ def _get_agent(self, name: str):
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        OSINT News Aggregator                    │
+│                            OSINT OA                             │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
 │  ┌─────────────┐    ┌──────────────┐    ┌────────────────────┐ │

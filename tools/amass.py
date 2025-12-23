@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Amass Tools
+# OSINT OA - Amass Tools
 # =============================================================================
 """
 OWASP Amass integration tools for attack surface mapping and asset discovery.

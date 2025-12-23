@@ -1,5 +1,5 @@
 # =============================================================================
-# OSINT News Aggregator - Agent Registry
+# OSINT OA - Agent Registry
 # =============================================================================
 """
 Agent registry for discovering and accessing agents.
@@ -182,6 +182,10 @@ def register_all_agents() -> None:
         from agents.osint.maigret import MaigretAgent
         from agents.osint.bbot import BbotAgent
         
+        # Email and Phone OSINT agents
+        from agents.osint.holehe import HoleheAgent
+        from agents.osint.phoneinfoga import PhoneInfogaAgent
+        
         # Register each agent
         for agent_class in [
             TavilySearchAgent,
@@ -194,6 +198,8 @@ def register_all_agents() -> None:
             ReportGeneratorAgent,
             MaigretAgent,
             BbotAgent,
+            HoleheAgent,
+            PhoneInfogaAgent,
         ]:
             AgentRegistry.register(agent_class)
         

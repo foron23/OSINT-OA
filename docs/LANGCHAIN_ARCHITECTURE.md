@@ -1,8 +1,8 @@
-# OSINT News Aggregator - LangChain Architecture
+# OSINT OA - LangChain Architecture
 
 ## Overview
 
-The OSINT News Aggregator uses LangChain with the ReAct (Reasoning + Acting) pattern for all agent operations. This provides:
+The OSINT OA uses LangChain with the ReAct (Reasoning + Acting) pattern for all agent operations. This provides:
 
 - **Intelligent reasoning**: Agents think through problems step-by-step
 - **Tool orchestration**: Agents decide which tools to use based on context
@@ -308,3 +308,161 @@ from agents import TavilySearchOsintAgent  # alias
 from agents import LangChainAgentRegistry
 from agents import AgentRegistry  # same as above
 ```
+
+## Investigation Features (v1.4.0+)
+
+### Robust Investigation System
+
+Investigations now support partial completion, allowing results to be returned even when some agents fail.
+
+#### Progress Tracking
+
+```python
+from agents.control import InvestigationProgress, AgentResult
+
+# Progress is tracked automatically during investigation
+progress = InvestigationProgress(
+    run_id=1,
+    topic="Ransomware analysis",
+    depth="standard",
+    started_at=datetime.now()
+)
+
+# Each agent result is tracked
+progress.add_agent_result(AgentResult(
+    agent_name="TavilySearchAgent",
+    success=True,
+    result="Found 5 articles",
+    duration_seconds=2.5,
+    iocs_extracted=3
+))
+
+# Check if we have useful results despite some failures
+if progress.has_useful_results():
+    # Generate partial report
+    ...
+```
+
+#### Investigation Status
+
+| Status | Description |
+|--------|-------------|
+| `completed` | All requested agents succeeded |
+| `partial` | Some agents failed but useful results available |
+| `failed` | No useful results could be gathered |
+
+### Agent Selection
+
+Investigations can be run with specific agent selection or auto mode:
+
+```python
+from agents.control import ControlAgent
+
+control = ControlAgent()
+
+# Auto mode - agent selects appropriate agents
+result = control.investigate(
+    topic="APT29 analysis",
+    depth="deep"
+)
+
+# Manual mode - specify exact agents
+result = control.investigate(
+    topic="APT29 analysis",
+    agents=["TavilySearchAgent", "ThreatIntelAgent", "IOCAnalysisAgent"],
+    depth="standard"
+)
+```
+
+#### Available Agents
+
+| Category | Agents |
+|----------|--------|
+| **Search** | TavilySearchAgent, DuckDuckGoSearchAgent, GoogleDorkingAgent |
+| **Analysis** | WebScraperAgent, ThreatIntelAgent, IOCAnalysisAgent, HybridOsintAgent |
+| **Identity** | MaigretAgent, HoleheAgent, PhoneInfogaAgent |
+| **Infrastructure** | BbotAgent |
+| **Utility** | ReportGeneratorAgent |
+
+### Investigation Continuation
+
+Investigations can be continued from previous runs:
+
+```python
+# Continue an investigation with new focus
+result = control.investigate(
+    topic="APT29 analysis",  # Original topic
+    depth="deep",
+    continue_from={
+        "previous_findings": "Found connections to IP 192.168.1.1",
+        "previous_iocs": ["192.168.1.1", "evil-domain.com"],
+        "new_instructions": "Focus on the domain infrastructure",
+        "original_run_id": 42,
+    }
+)
+```
+
+#### API Endpoint
+
+```http
+POST /api/runs/{run_id}/continue
+
+{
+  "new_instructions": "Focus on the email addresses found",
+  "agents": ["HoleheAgent", "MaigretAgent"],
+  "selected_iocs": ["user@example.com", "admin@evil.com"],
+  "depth": "standard",
+  "publish_telegram": true
+}
+```
+
+Response:
+```json
+{
+  "run_id": 43,
+  "continued_from": 42,
+  "status": "completed",
+  "partial": false,
+  "report": {...},
+  "investigation": {...}
+}
+```
+
+### Partial Report Generation
+
+When investigations fail partially, a report is still generated:
+
+```python
+# Example partial report structure
+"""
+## Partial Investigation Report
+
+**Topic:** Ransomware analysis
+**Status:** Partial completion due to errors
+**Agents Succeeded:** 3
+**Agents Failed:** 2
+
+### Errors Encountered
+- BbotAgent: Connection timeout
+- MaigretAgent: Command not found
+
+### Collected Findings
+
+#### From TavilySearchAgent
+Found important information about...
+
+#### From ThreatIntelAgent
+Identified threat actor...
+
+### Evidence Summary
+- 5 IP addresses
+- 3 domain names
+- 2 email addresses
+
+### Recommendations
+- Review errors and retry failed agents individually
+- Consider using lower depth for more stable results
+- Use 'Continue Investigation' to resume with specific agents
+"""
+```
+

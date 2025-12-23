@@ -1,16 +1,28 @@
 # =============================================================================
-# OSINT News Aggregator - Integrations Package
+# OSINT OA - Integrations Package
 # =============================================================================
 """
 Integrations with external tools and services.
 
 Modules:
-- telegram: Telegram messaging via MCP (TelegramMCPClient, TelegramListener)
+- telegram: Telegram messaging via Telethon (TelethonClient, TelegramListener)
 - tool_runner: External CLI tool runners (ReconNg, SpiderFoot)
 """
 
-# Telegram integration (new modular structure)
-from integrations.telegram import TelegramMCPClient, TelegramListener
+# Telegram integration (Telethon-based)
+from integrations.telegram import (
+    TelethonClient,
+    TelethonReportPublisher,
+    TelegramListener,
+    TelegramFormatter,
+    get_telegram_client,
+    get_telegram_publisher,
+    TELETHON_AVAILABLE,
+)
+
+# Backward compatibility aliases
+TelegramMCPClient = TelethonClient
+TelegramReportPublisher = TelethonReportPublisher
 
 # Legacy imports for backward compatibility
 try:
@@ -29,16 +41,17 @@ except ImportError:
     TelegramPublisher = None
     telegram_publisher = None
 
-# New Telegram client/publisher
-try:
-    from integrations.telegram.mcp_client import TelegramReportPublisher
-except ImportError:
-    TelegramReportPublisher = None
-
 __all__ = [
-    # New Telegram integration
-    "TelegramMCPClient",
+    # New Telegram integration (Telethon)
+    "TelethonClient",
+    "TelethonReportPublisher",
     "TelegramListener",
+    "TelegramFormatter",
+    "get_telegram_client",
+    "get_telegram_publisher",
+    "TELETHON_AVAILABLE",
+    # Backward compatibility
+    "TelegramMCPClient",
     "TelegramReportPublisher",
     # Legacy tool runners
     "ToolRunner",

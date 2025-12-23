@@ -27,7 +27,7 @@ import re
 from datetime import datetime
 from typing import Dict, Any, Optional, List, Set, Callable
 
-from integrations.telegram.mcp_client import TelegramMCPClient
+from integrations.telegram.telethon_client import TelethonClient, get_telegram_client
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ class TelegramListener:
         self.poll_interval = poll_interval
         self.processed_messages: Set[str] = set()
         self.running = False
-        self.client = TelegramMCPClient()
+        self.client = get_telegram_client()  # Uses Telethon
         self.logger = logging.getLogger(self.__class__.__name__)
         
         # Investigation callback
@@ -182,8 +182,8 @@ class TelegramListener:
         self.running = True
         self._log_startup_banner()
         
-        # Wait for MCP service to be available
-        await self._wait_for_mcp_service()
+        # Wait for Telethon client to be available
+        await self._wait_for_telegram_service()
         
         # Load initial messages to avoid re-processing old ones
         await self._initialize_processed_messages()
@@ -194,33 +194,30 @@ class TelegramListener:
                 await self._poll_for_messages()
             except Exception as e:
                 self.logger.error(f"Poll error: {e}")
-                # Reset service availability cache on error to allow retry
-                self.client._service_available = None
             
             await asyncio.sleep(self.poll_interval)
     
-    async def _wait_for_mcp_service(self, max_retries: int = 30, retry_interval: int = 2):
-        """Wait for the MCP service to become available."""
-        self.logger.info("Waiting for Telegram MCP service to be available...")
+    async def _wait_for_telegram_service(self, max_retries: int = 30, retry_interval: int = 2):
+        """Wait for the Telegram service to become available."""
+        self.logger.info("Waiting for Telegram service to be available...")
         
         for attempt in range(max_retries):
             try:
-                # Reset cache to force fresh check
-                self.client._service_available = None
-                
-                # Try to get service client
-                service_client = await self.client._get_service_client()
-                if service_client and await service_client.is_available():
-                    self.logger.info("✅ Telegram MCP service is available")
-                    return
+                # Try to connect and verify service is ready
+                if self.client:
+                    # Test connection by trying to get dialogs
+                    dialogs = await self.client.list_dialogs(limit=1)
+                    if dialogs is not None:
+                        self.logger.info("✅ Telegram service is available")
+                        return
             except Exception as e:
                 self.logger.debug(f"Service check failed: {e}")
             
             if attempt < max_retries - 1:
-                self.logger.info(f"Waiting for MCP service... (attempt {attempt + 1}/{max_retries})")
+                self.logger.info(f"Waiting for Telegram service... (attempt {attempt + 1}/{max_retries})")
                 await asyncio.sleep(retry_interval)
         
-        self.logger.warning("⚠️ MCP service not available after waiting, will retry on each poll")
+        self.logger.warning("⚠️ Telegram service not available after waiting, will retry on each poll")
     
     def stop(self):
         """Stop listening."""
@@ -248,9 +245,15 @@ class TelegramListener:
     async def _initialize_processed_messages(self):
         """Load existing messages to avoid processing old ones."""
         try:
-            result = await self.client.get_dialog_messages(self.target_dialog)
+            messages = await self.client.get_dialog_messages(self.target_dialog)
             
-            for msg in result.get("messages", []):
+            # Handle both list and dict formats
+            if isinstance(messages, dict):
+                messages = messages.get("messages", [])
+            elif not isinstance(messages, list):
+                messages = []
+            
+            for msg in messages:
                 msg_key = self._get_message_key(msg)
                 self.processed_messages.add(msg_key)
             
@@ -262,8 +265,14 @@ class TelegramListener:
     async def _poll_for_messages(self):
         """Poll for new messages and process them."""
         try:
-            result = await self.client.get_dialog_messages(self.target_dialog)
-            messages = result.get("messages", [])
+            # get_dialog_messages returns List[Dict], not Dict with "messages" key
+            messages = await self.client.get_dialog_messages(self.target_dialog)
+            
+            # Handle both list and dict formats for robustness
+            if isinstance(messages, dict):
+                messages = messages.get("messages", [])
+            elif not isinstance(messages, list):
+                messages = []
             
             # Process new messages (in reverse order - oldest first)
             for msg in reversed(messages):
@@ -801,7 +810,7 @@ class TelegramListener:
             report_text = report_text[:max_content - 100]
             report_text += f"\n\n... [Reporte truncado]\n_Ver completo con `/run {run_id}` o en la web._"
         
-        message = header + report_text + "\n\n---\n_Generated by OSINT News Aggregator_"
+        message = header + report_text + "\n\n---\n_Generated by OSINT OA_"
         
         try:
             await self.client.send_message(self.target_dialog, message)
